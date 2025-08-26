@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Monopoly — Join</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        :root {
+            font-family: system-ui, Arial, sans-serif;
+        }
+
+        body {
+            display: flex;
+            min-height: 100dvh;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            background: #f6f7fb;
+        }
+
+        .card {
+            background: #fff;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .08);
+            width: min(420px, 90vw);
+        }
+
+        h1 {
+            margin: 0 0 12px;
+            font-size: 1.25rem;
+        }
+
+        label {
+            font-size: .9rem;
+            color: #444;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid #dcdfe6;
+            outline: none;
+            font-size: 1rem;
+        }
+
+        input:focus {
+            border-color: #7aa2ff;
+            box-shadow: 0 0 0 3px rgba(122, 162, 255, .2);
+        }
+
+        button {
+            margin-top: 14px;
+            width: 100%;
+            padding: 12px 14px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #1f6feb;
+            color: #fff;
+        }
+
+        button:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        .hint {
+            color: #666;
+            font-size: .85rem;
+            margin-top: 8px;
+        }
+
+        .error {
+            color: #b00020;
+            margin-top: 8px;
+            font-size: .9rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>Join Monopoly</h1>
+        <label for="name">Display name</label>
+        <input id="name" placeholder="e.g., Alice" autocomplete="name" />
+        <button id="joinBtn">Join</button>
+        <div class="hint">Up to 10 players supported.</div>
+        <div class="error" id="err" hidden></div>
+    </div>
+
+    <script>
+        const WS_URL = "ws://localhost:8080/ws"; // ← change to your backend endpoint
+
+
+
+        const nameEl = document.getElementById('name');
+        const joinBtn = document.getElementById('joinBtn');
+        const errEl = document.getElementById('err');
+
+        function showError(msg) {
+            errEl.hidden = false;
+            errEl.textContent = msg || "Failed to join. Please try again.";
+        }
+
+        joinBtn.addEventListener('click', async () => {
+            const name = nameEl.value.trim();
+            if (!name) { showError("Please enter a name."); return; }
+            joinBtn.disabled = true; errEl.hidden = true;
+
+            let ws;
+            try {
+                // Optional: pass name as a query param if your backend prefers that style
+                // const wsUrl = WS_URL + "?name=" + encodeURIComponent(name);
+                const wsUrl = WS_URL;
+                ws = new WebSocket(wsUrl);
+                // …after you create `ws = new WebSocket(WS_URL)`
+                const timeout = setTimeout(() => {
+                    try { ws.close(); } catch { }
+                    joinBtn.disabled = false;
+                    showError("Join timed out — server didn’t reply within 8s.");
+                }, 8000);
+
+                ws.onclose = (e) => {
+                    // If closed before we stored playerId, show detailed reason
+                    if (!sessionStorage.getItem("playerId")) {
+                        clearTimeout(timeout);
+                        joinBtn.disabled = false;
+                        const code = e.code ?? '(no code)';
+                        const reason = e.reason || '(no reason)';
+                        showError(`Connection closed (code ${code}): ${reason}`);
+                    }
+                };
+            } catch (e) {
+                joinBtn.disabled = false;
+                return showError("Invalid WebSocket URL.");
+            }
+
+            const timeout = setTimeout(() => {
+                try { ws.close(); } catch { }
+                joinBtn.disabled = false;
+                showError("Connection timed out.");
+            }, 8000);
+
+            ws.onopen = () => {
+                // Send a simple join message – adjust to match your server protocol.
+                ws.send(JSON.stringify({ type: "join", name }));
+            };
+
+            ws.onmessage = (ev) => {
+                try {
+                    const msg = JSON.parse(ev.data);
+                    if (msg.type === "joined" && msg.playerId) {
+                        clearTimeout(timeout);
+                        // Persist identity for the game page
+                        sessionStorage.setItem("playerId", msg.playerId);
+                        sessionStorage.setItem("playerName", name);
+                        // If your backend gives a room/game id, store it too:
+                        if (msg.gameId) sessionStorage.setItem("gameId", msg.gameId);
+                        try { ws.close(); } catch { }
+                        window.location.href = "game.html";
+                    } else if (msg.type === "error") {
+                        clearTimeout(timeout);
+                        joinBtn.disabled = false;
+                        showError(msg.message || "Server rejected join.");
+                    }
+                } catch {
+                    // ignore non-JSON messages
+                }
+            };
+
+            ws.onerror = () => {
+                clearTimeout(timeout);
+                joinBtn.disabled = false;
+                showError("WebSocket error.");
+            };
+
+            ws.onclose = (e) => {
+                // If closed before joined, surface error
+                if (!sessionStorage.getItem("playerId")) {
+                    clearTimeout(timeout);
+                    joinBtn.disabled = false;
+                    if (e.code !== 1000) showError("Connection closed unexpectedly.");
+                }
+            };
+        });
+    </script>
+</body>
+
+</html>
