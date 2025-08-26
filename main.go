@@ -6,11 +6,31 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+// broadcast sends the same message to every client in the room.
+func broadcast(room string, msg any) {
+	b, _ := json.Marshal(msg)
+
+	mu.Lock()
+	set := rooms[room]
+	clients := make([]*Client, 0, len(set))
+	for cl := range set {
+		clients = append(clients, cl)
+	}
+	mu.Unlock()
+
+	for _, cl := range clients {
+		cl.writeRaw(b)
+	}
+}
+
+/* ===== Models ===== */
 
 type Player struct {
 	ID   string `json:"id"`
@@ -30,6 +50,14 @@ type inbound struct {
 	Room     string `json:"room"`
 }
 
+type rollReq struct {
+	PlayerID string `json:"playerId"`
+	Room     string `json:"room"`
+	Name     string `json:"name"` // optional (used for logging)
+}
+
+/* ===== Globals ===== */
+
 var (
 	upgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
@@ -37,30 +65,56 @@ var (
 
 	mu    sync.Mutex
 	rooms = make(map[string]map[*Client]struct{}) // room -> clients
+	turn  = make(map[string]*Client)              // room -> current player
 
-	// Optional: simple turn management per room
-	turn = make(map[string]*Client)
+	// positions[room][playerID] = tileIndex (0..39). We keep server-authoritative positions.
+	positions = make(map[string]map[string]int)
 
 	maxPlayers = 10
 )
 
+/* ===== CORS ===== */
+
+func withCORS(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		h(w, r)
+	}
+}
+
+/* ===== Main ===== */
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	http.HandleFunc("/ws", wsHandler)
-	http.HandleFunc("/roll", rollHTTP)
+	http.HandleFunc("/ws", withCORS(wsHandler))
+	http.HandleFunc("/roll", withCORS(rollHTTP))
+	http.HandleFunc("/debug/players", withCORS(debugPlayersHTTP))
 
-	// serve game.html and static
+	// Serve HTML
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" || r.URL.Path == "/game.html" {
+		switch r.URL.Path {
+		case "/", "/index.html":
+			http.ServeFile(w, r, "index.html")
+			return
+		case "/game.html":
 			http.ServeFile(w, r, "game.html")
 			return
+		default:
+			http.NotFound(w, r)
+			return
 		}
-		http.NotFound(w, r)
 	})
 
 	addr := ":8080"
-	log.Printf("listening on %s (ws endpoint: /ws)", addr)
+	log.Printf("listening on %s (ws: /ws, roll: /roll)", addr)
 	go broadcastServerLog("Server started; waiting for players...")
 
 	if err := http.ListenAndServe(addr, nil); err != nil {
@@ -68,13 +122,10 @@ func main() {
 	}
 }
 
-type rollReq struct {
-	PlayerID string `json:"playerId"`
-	Room     string `json:"room"`
-}
+/* ===== REST: /roll ===== */
 
 func rollHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Println("Rolling Dice", r.RemoteAddr)
+	log.Println("HTTP /roll", r.RemoteAddr)
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -83,6 +134,7 @@ func rollHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var req rollReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("decode error: %v", err)
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
 	}
@@ -91,51 +143,45 @@ func rollHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve the client
 	c := getClientByID(req.Room, req.PlayerID)
 	if c == nil {
 		http.Error(w, "player not connected in room", http.StatusNotFound)
 		return
 	}
 
-	// Verify turn holder
+	// Turn check
 	holder := getTurnHolder(req.Room)
 	if holder == nil || holder != c {
 		http.Error(w, "not your turn", http.StatusForbidden)
-		// Optional: also tell the player via WS
-		if c != nil {
-			c.writeJSON(map[string]any{
-				"type": "event",
-				"text": "Not your turn.",
-			})
-		}
+		c.writeJSON(map[string]any{"type": "event", "text": "Not your turn."})
 		return
 	}
 
-	// Roll dice
-	d1 := 1 + rand.Intn(6)
-	d2 := 1 + rand.Intn(6)
+	// Authoritative dice & move
+	d1, d2 := 1+rand.Intn(6), 1+rand.Intn(6)
 	total := d1 + d2
 
-	// Broadcast event text
+	from := getPos(req.Room, c.ID) // defaults to 0 if absent
+	to := (from + total) % 40
+	setPos(req.Room, c.ID, to)
+
+	// Broadcast event + move (with dice for the roller)
 	broadcast(req.Room, map[string]any{
 		"type": "event",
 		"text": fmt.Sprintf("%s rolled %d (%d + %d)", c.Name, total, d1, d2),
 	})
+	broadcast(req.Room, map[string]any{
+		"type":     "move",
+		"playerId": c.ID,
+		"from":     from,
+		"to":       to,
+		"dice":     []int{d1, d2},
+	})
 
-	// (Optional) Animate a token move if you track positions.
-	// If you keep per-player positions server-side, compute from->to and emit:
-	// broadcast(req.Room, map[string]any{
-	// 	"type":     "move",
-	// 	"playerId": c.ID,
-	// 	"from":     fromIndex,
-	// 	"to":       (fromIndex + total) % 40,
-	// })
-
-	// Pass the turn and notify next holder
+	// Pass turn
 	passTurn(req.Room, c)
 
-	// Respond to the HTTP caller
+	// Response for the caller
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"ok":    true,
@@ -143,6 +189,8 @@ func rollHTTP(w http.ResponseWriter, r *http.Request) {
 		"total": total,
 	})
 }
+
+/* ===== WS: /ws ===== */
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 	cn, err := upgrader.Upgrade(w, r, nil)
@@ -154,7 +202,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	defer func() {
 		onClose(client)
-		cn.Close()
+		_ = cn.Close()
 	}()
 
 	for {
@@ -163,11 +211,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// echo raw inbound to any log-subscribers in the room (after we know room)
-		var msg map[string]any
-		_ = json.Unmarshal(data, &msg)
-
-		// handle typed messages
 		var in inbound
 		_ = json.Unmarshal(data, &in)
 
@@ -182,28 +225,22 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if !addToRoom(client.Room, client) {
-				// room full
-				client.writeJSON(map[string]any{
-					"type": "event",
-					"text": "Room is full (10 players max).",
-				})
+				client.writeJSON(map[string]any{"type": "event", "text": "Room is full (10 players max)."})
 				return
 			}
-
 			broadcastServerLogTo(client.Room, fmt.Sprintf("%s connected (%s)", client.Name, short(client.ID)))
 
-			// snapshot roster to everyone
-			broadcast(client.Room, map[string]any{
-				"type": "players",
-				"list": roster(client.Room),
-			})
-			// delta joined
-			broadcast(client.Room, map[string]any{
-				"type":   "playerJoined",
-				"player": Player{ID: client.ID, Name: client.Name},
-			})
+			// Ensure initial position at GO
+			ensurePos(client.Room, client.ID)
 
-			// If no one has the turn yet, give it to first player
+			// Broadcast roster + joined delta
+			broadcast(client.Room, map[string]any{"type": "players", "list": roster(client.Room)})
+			broadcast(client.Room, map[string]any{"type": "playerJoined", "player": Player{ID: client.ID, Name: client.Name}})
+
+			// Send a state snapshot so clients can render tokens (GO for new players)
+			broadcast(client.Room, map[string]any{"type": "state", "positions": snapshotPositions(client.Room)})
+
+			// Ensure someone has the turn
 			ensureTurnHolder(client.Room)
 
 		case "who":
@@ -211,50 +248,47 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			if room == "" {
 				room = client.Room
 			}
-			client.writeJSON(map[string]any{
-				"type": "players",
-				"list": roster(room),
-			})
+			client.writeJSON(map[string]any{"type": "players", "list": roster(room)})
 
 		case "subscribeLogs":
-			// No explicit subscription list; we just broadcast important logs to the room.
-			// This message is here so the client knows it's set up.
-			client.writeJSON(map[string]any{
-				"type": "serverLog",
-				"text": "Subscribed to server logs for room " + client.Room,
-			})
+			client.writeJSON(map[string]any{"type": "serverLog", "text": "Subscribed to server logs for room " + client.Room})
 
 		case "roll":
-			// simple demo roll, emits an event, and passes turn
 			room := client.Room
 			if room == "" {
 				break
 			}
 			holder := getTurnHolder(room)
 			if holder == nil || holder != client {
-				client.writeJSON(map[string]any{
-					"type": "event",
-					"text": "Not your turn.",
-				})
+				client.writeJSON(map[string]any{"type": "event", "text": "Not your turn."})
 				break
 			}
-
-			d1 := 1 + rand.Intn(6)
-			d2 := 1 + rand.Intn(6)
+			// Server-authoritative dice + move
+			d1, d2 := 1+rand.Intn(6), 1+rand.Intn(6)
 			total := d1 + d2
+
+			from := getPos(room, client.ID)
+			to := (from + total) % 40
+			setPos(room, client.ID, to)
+
 			broadcast(room, map[string]any{
 				"type": "event",
 				"text": fmt.Sprintf("%s rolled %d (%d + %d)", client.Name, total, d1, d2),
 			})
+			broadcast(room, map[string]any{
+				"type":     "move",
+				"playerId": client.ID,
+				"from":     from,
+				"to":       to,
+				"dice":     []int{d1, d2},
+			})
 
-			// pass turn to next connected player
 			passTurn(room, client)
 
 		case "ping":
 			// ignore
 
 		case "leave":
-			// client initiated close
 			return
 		}
 	}
@@ -268,17 +302,11 @@ func onClose(c *Client) {
 	if removed {
 		broadcastServerLogTo(c.Room, fmt.Sprintf("%s disconnected (%s)", c.Name, short(c.ID)))
 
-		// send fresh roster + delta left
-		broadcast(c.Room, map[string]any{
-			"type": "players",
-			"list": roster(c.Room),
-		})
-		broadcast(c.Room, map[string]any{
-			"type":   "playerLeft",
-			"player": Player{ID: c.ID, Name: c.Name},
-		})
+		// Update roster + left delta
+		broadcast(c.Room, map[string]any{"type": "players", "list": roster(c.Room)})
+		broadcast(c.Room, map[string]any{"type": "playerLeft", "player": Player{ID: c.ID, Name: c.Name}})
 
-		// if the turn holder left, move turn forward
+		// If turn holder left, advance
 		holder := getTurnHolder(c.Room)
 		if holder == nil || holder == c {
 			passTurn(c.Room, c)
@@ -286,7 +314,7 @@ func onClose(c *Client) {
 	}
 }
 
-// ---- rooms/roster helpers ----
+/* ===== Rooms / Roster ===== */
 
 func addToRoom(room string, c *Client) bool {
 	mu.Lock()
@@ -318,6 +346,7 @@ func removeFromRoom(room string, c *Client) bool {
 	if len(set) == 0 {
 		delete(rooms, room)
 		delete(turn, room)
+		delete(positions, room)
 	}
 	return true
 }
@@ -329,26 +358,69 @@ func roster(room string) []Player {
 	for cl := range rooms[room] {
 		out = append(out, Player{ID: cl.ID, Name: cl.Name})
 	}
+	// Sort for stable order (by Name then ID)
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name == out[j].Name {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].Name < out[j].Name
+	})
 	return out
 }
 
-func broadcast(room string, msg any) {
-	b, _ := json.Marshal(msg)
-
+func getClientByID(room, playerID string) *Client {
 	mu.Lock()
-	set := rooms[room]
-	clients := make([]*Client, 0, len(set))
-	for cl := range set {
-		clients = append(clients, cl)
+	defer mu.Unlock()
+	for c := range rooms[room] {
+		if c.ID == playerID {
+			return c
+		}
 	}
-	mu.Unlock()
+	return nil
+}
 
-	for _, cl := range clients {
-		cl.writeRaw(b)
+/* ===== Positions (server-authoritative) ===== */
+
+func ensurePos(room, playerID string) {
+	mu.Lock()
+	defer mu.Unlock()
+	if positions[room] == nil {
+		positions[room] = make(map[string]int)
+	}
+	if _, ok := positions[room][playerID]; !ok {
+		positions[room][playerID] = 0 // GO for brand new players
 	}
 }
 
-// ---- simple turn handling ----
+func getPos(room, playerID string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	if positions[room] == nil {
+		return 0
+	}
+	return positions[room][playerID]
+}
+
+func setPos(room, playerID string, idx int) {
+	mu.Lock()
+	defer mu.Unlock()
+	if positions[room] == nil {
+		positions[room] = make(map[string]int)
+	}
+	positions[room][playerID] = ((idx % 40) + 40) % 40
+}
+
+func snapshotPositions(room string) map[string]int {
+	mu.Lock()
+	defer mu.Unlock()
+	cp := make(map[string]int, len(positions[room]))
+	for k, v := range positions[room] {
+		cp[k] = v
+	}
+	return cp
+}
+
+/* ===== Turns ===== */
 
 func ensureTurnHolder(room string) {
 	mu.Lock()
@@ -381,12 +453,18 @@ func passTurn(room string, current *Client) {
 		return
 	}
 
-	// build stable list to rotate
+	// Build deterministic list (sort by Name, then ID) so rotation is stable
 	list := make([]*Client, 0, len(set))
 	for c := range set {
 		list = append(list, c)
 	}
-	// find current index
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Name == list[j].Name {
+			return list[i].ID < list[j].ID
+		}
+		return list[i].Name < list[j].Name
+	})
+
 	nextIdx := 0
 	for i, c := range list {
 		if c == current {
@@ -403,30 +481,21 @@ func notifyTurn(room string) {
 	if holder == nil {
 		return
 	}
-	// notify everyone and specifically enable for holder
-	broadcast(room, map[string]any{
-		"type": "event",
-		"text": fmt.Sprintf("It's %s's turn.", holder.Name),
-	})
-	// tell holder they can roll
-	holder.writeJSON(map[string]any{
-		"type":    "yourTurn",
-		"canRoll": true,
-	})
+	broadcast(room, map[string]any{"type": "event", "text": fmt.Sprintf("It's %s's turn.", holder.Name)})
+	holder.writeJSON(map[string]any{"type": "yourTurn", "canRoll": true})
 }
 
-// ---- logging helpers (mirror to clients via serverLog) ----
+/* ===== Logging ===== */
 
 func broadcastServerLog(text string) {
 	log.Println(text)
-	// send to all rooms
 	mu.Lock()
-	var roomsList []string
+	var list []string
 	for room := range rooms {
-		roomsList = append(roomsList, room)
+		list = append(list, room)
 	}
 	mu.Unlock()
-	for _, room := range roomsList {
+	for _, room := range list {
 		broadcast(room, map[string]any{"type": "serverLog", "text": text})
 	}
 }
@@ -436,7 +505,7 @@ func broadcastServerLogTo(room, text string) {
 	broadcast(room, map[string]any{"type": "serverLog", "text": text})
 }
 
-// ---- client write helpers ----
+/* ===== Client write helpers ===== */
 
 func (c *Client) writeJSON(v any) {
 	b, _ := json.Marshal(v)
@@ -449,6 +518,8 @@ func (c *Client) writeRaw(b []byte) {
 	_ = c.Conn.WriteMessage(websocket.TextMessage, b)
 }
 
+/* ===== Utils ===== */
+
 func short(id string) string {
 	if len(id) <= 6 {
 		return id
@@ -456,13 +527,55 @@ func short(id string) string {
 	return id[:6]
 }
 
-func getClientByID(room, playerID string) *Client {
+/* ===== Debug endpoint ===== */
+
+type PlayerInfo struct {
+	PlayerID string `json:"playerId"`
+	Name     string `json:"name"`
+	RoomID   string `json:"roomId"`
+	Pos      int    `json:"pos"`
+}
+
+func debugPlayersHTTP(w http.ResponseWriter, r *http.Request) {
+	room := r.URL.Query().Get("room")
+	w.Header().Set("Content-Type", "application/json")
+
 	mu.Lock()
 	defer mu.Unlock()
-	for c := range rooms[room] {
-		if c.ID == playerID {
-			return c
+
+	if room != "" {
+		var list []PlayerInfo
+		set := rooms[room]
+		for c := range set {
+			pos := 0
+			if positions[room] != nil {
+				pos = positions[room][c.ID]
+			}
+			list = append(list, PlayerInfo{
+				PlayerID: c.ID,
+				Name:     c.Name,
+				RoomID:   room,
+				Pos:      pos,
+			})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"room": room, "players": list})
+		return
+	}
+
+	out := map[string][]PlayerInfo{}
+	for rm, set := range rooms {
+		for c := range set {
+			pos := 0
+			if positions[rm] != nil {
+				pos = positions[rm][c.ID]
+			}
+			out[rm] = append(out[rm], PlayerInfo{
+				PlayerID: c.ID,
+				Name:     c.Name,
+				RoomID:   rm,
+				Pos:      pos,
+			})
 		}
 	}
-	return nil
+	_ = json.NewEncoder(w).Encode(out)
 }

@@ -6,139 +6,101 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root { font-family: system-ui, Arial, sans-serif; --brand:#1f6feb; }
-    body { margin:0; background:linear-gradient(180deg,#f4f7fb 0%,#eef2f8 100%); }
-    header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:#fff; box-shadow:0 2px 12px rgba(0,0,0,.06); position:sticky; top:0; z-index:3; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:linear-gradient(180deg,#f4f7fb 0%,#eef2f8 100%); color:#0b1220; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; background:#fff; box-shadow:0 2px 12px rgba(0,0,0,.06); position:sticky; top:0; z-index:3; }
     .tag { background:#eef2ff; color:#1f3bb3; padding:6px 10px; border-radius:999px; font-size:.9rem; }
-    .wrap { display:grid; grid-template-columns: 360px 1fr; gap:16px; padding:16px; }
-    @media (max-width: 1020px) { .wrap { grid-template-columns: 1fr; } }
+    .btn { padding:10px 12px; border-radius:10px; border:none; background:var(--brand); color:#fff; cursor:pointer; font-weight:700; box-shadow:0 6px 14px rgba(31,111,235,.2); }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    .btn.red { background:#d64545; box-shadow:0 6px 14px rgba(214,69,69,.18); }
 
-    /* Panels */
-    .panel { background:#fff; padding:16px; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.08); }
+    /* Layout: Board on top, 80% viewport height */
+    .boardTop { width:100%; height:80vh; display:grid; place-items:center; padding:12px; }
+    .board-wrap { position:relative; width:min(1200px, 96vw); height:100%; }
+    .board {
+      background:#fff; padding:16px; border-radius:20px; box-shadow:0 14px 44px rgba(0,0,0,.10);
+      width:100%; height:100%;
+      display:grid; grid-template-columns: repeat(11, 1fr); grid-template-rows: repeat(11, 1fr);
+      user-select:none; transform:perspective(1600px) rotateX(2deg); transition:transform .4s ease, box-shadow .4s ease;
+    }
+    .board:hover { transform:perspective(1600px) rotateX(0deg); box-shadow:0 18px 60px rgba(0,0,0,.14); }
+    .tile {
+      border:1px solid #e2e6ef; display:flex; flex-direction:column; align-items:center; justify-content:center;
+      font-size:clamp(.55rem,.8vw,.75rem); text-align:center; padding:4px; position:relative; background:#fbfcff;
+      transition:transform .12s ease, box-shadow .12s ease;
+    }
+    .tile:hover { transform:translateY(-2px) scale(1.02); box-shadow:0 6px 14px rgba(0,0,0,.06); background:#fff; }
+    .tile .icon { font-size:1.1rem; line-height:1; }
+    .tile .name { margin-top:2px; }
+    .tile .band { position:absolute; inset:auto 0 0 0; height:6px; }
+    .corner { font-weight:700; background:linear-gradient(180deg,#f9fbff 0%,#f1f4fb 100%); }
+    .center {
+      grid-column:2/11; grid-row:2/11; display:grid; place-items:center; border:2px dashed #e2e6ef; border-radius:12px;
+      font-weight:800; color:#7e8aa1; letter-spacing:.12em; font-size:clamp(1rem,2vw,1.6rem); position:relative;
+    }
+
+    .tokens { position:absolute; inset:16px; display:grid; grid-template-columns: repeat(11, 1fr); grid-template-rows: repeat(11, 1fr); pointer-events:none; }
+    .token { width:18px; height:18px; border-radius:50%; background:var(--token,#1f6feb); box-shadow:0 4px 10px rgba(0,0,0,.25), inset 0 0 10px rgba(255,255,255,.6); display:grid; place-items:center; color:#fff; font-size:.65rem; font-weight:700; transition:transform .5s ease; transform:translate(var(--tx,0), var(--ty,0)); }
+    .token::after { content:attr(data-initial); }
+
+    /* Bottom row with panels */
+    .bottomRow { display:grid; grid-template-columns: 1fr 1fr; gap:16px; padding:16px; }
+    @media (max-width: 1000px) { .bottomRow { grid-template-columns: 1fr; } }
+    .panel { background:#fff; padding:16px; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.08); min-height:220px; }
     .panel h3 { margin:0 0 8px; }
     .subhead { margin:4px 0 12px; color:#667; font-size:.9rem; }
-
     .roster-item { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border:1px solid #e6e9f2; border-radius:10px; margin-bottom:8px; }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:.8rem; background:#eef8ee; color:#176a2f; margin-right:8px; }
     .me { background:#e7f1ff; color:#0b55d8; }
     .id { color:#8a94a6; font-size:.85rem; }
-
-    .btn { padding:10px 12px; border-radius:10px; border:none; background:var(--brand); color:#fff; cursor:pointer; font-weight:600; box-shadow:0 6px 14px rgba(31,111,235,.2); transition:transform .12s ease; }
-    .btn:hover { transform:translateY(-1px); }
-    .btn:disabled { opacity:.6; cursor:not-allowed; filter:grayscale(.2); }
-    .btn.red { background:#d64545; box-shadow:0 6px 14px rgba(214,69,69,.18); }
-
-    /* Board */
-    .board-wrap { position:relative; }
-    .board {
-      background:#fff; padding:16px; border-radius:20px; box-shadow:0 14px 44px rgba(0,0,0,.10);
-      display:grid;
-      grid-template-columns: repeat(11, min(64px, 8.2vw));
-      grid-template-rows: repeat(11, min(64px, 8.2vw));
-      justify-content:center;
-      margin:auto;
-      user-select:none;
-      transform:perspective(1600px) rotateX(2deg);
-      transition:transform .4s ease, box-shadow .4s ease;
-    }
-    .board:hover { transform:perspective(1600px) rotateX(0deg); box-shadow:0 18px 60px rgba(0,0,0,.14); }
-
-    .tile {
-      border:1px solid #e2e6ef; display:flex; flex-direction:column; align-items:center; justify-content:center;
-      font-size:.72rem; text-align:center; padding:4px; position:relative; overflow:hidden; background:#fbfcff;
-      transition:transform .12s ease, box-shadow .12s ease, background .2s ease;
-    }
-    .tile:hover { transform:translateY(-2px) scale(1.02); box-shadow:0 6px 14px rgba(0,0,0,.06); background:#fff; }
-    .tile .name { margin-top:2px; }
-    .tile .icon { font-size:1.1rem; line-height:1; }
-    .tile .band { position:absolute; inset:auto 0 0 0; height:6px; }
-    .corner { font-weight:700; background:linear-gradient(180deg,#f9fbff 0%,#f1f4fb 100%); }
-    .corner::after {
-      content:""; position:absolute; inset:0; border:2px solid transparent; border-radius:12px;
-      animation:cornerGlow 2.6s ease-in-out infinite;
-    }
-    @keyframes cornerGlow {
-      0%,100% { box-shadow:0 0 0 rgba(85,145,255,0); }
-      50%     { box-shadow:0 0 18px rgba(85,145,255,.35); }
-    }
-
-    .center {
-      grid-column: 2 / 11; grid-row: 2 / 11;
-      display:flex; align-items:center; justify-content:center; border:2px dashed #e2e6ef; border-radius:12px; font-weight:800; color:#7e8aa1;
-      letter-spacing:.12em; font-size:1.4rem; position:relative; overflow:hidden;
-    }
-    .center::before {
-      content:""; position:absolute; width:130%; height:130%;
-      background: conic-gradient(from 0deg, rgba(31,111,235,.08), transparent 40%, rgba(31,111,235,.08), transparent 70%);
-      animation:spin 10s linear infinite;
-    }
-    @keyframes spin { to { transform:rotate(360deg); } }
-
-    /* Token layer */
-    .tokens { position:absolute; inset:16px; display:grid; grid-template-columns: repeat(11, min(64px, 8.2vw)); grid-template-rows: repeat(11, min(64px, 8.2vw)); pointer-events:none; }
-    .token {
-      width:18px; height:18px; border-radius:50%;
-      background:var(--token,#1f6feb);
-      box-shadow:0 4px 10px rgba(0,0,0,.25), inset 0 0 10px rgba(255,255,255,.6);
-      transition:transform .5s ease, grid-column .0s linear .5s, grid-row .0s linear .5s;
-      transform:translate(var(--tx,0), var(--ty,0));
-      display:grid; place-items:center; color:#fff; font-size:.65rem; font-weight:700;
-      animation:pop .35s ease;
-    }
-    .token::after {
-      content:attr(data-initial);
-    }
-    @keyframes pop { from { transform:scale(.4); opacity:.0; } to { transform:scale(1); opacity:1; } }
-
-    /* Events console */
-    .log { background:#0b1020; color:#d8e0ff; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; padding:12px; border-radius:12px; height:280px; overflow:auto; white-space:pre-wrap; }
-    .log .in  { color:#bfe3ff; }
-    .log .out { color:#ffd59e; }
-    .log .sys { color:#c1c8ff; }
+    .log { background:#0b1020; color:#d8e0ff; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; padding:12px; border-radius:12px; height:260px; overflow:auto; white-space:pre-wrap; }
+    .log .in  { color:#bfe3ff; } .log .out { color:#ffd59e; } .log .sys { color:#c1c8ff; }
   </style>
 </head>
 <body>
   <header>
-    <div>
-      Monopoly — <span id="who" class="tag"></span>
-      <span id="roomTag" class="tag" style="margin-left:8px; background:#eaf7ef; color:#1a7f46;"></span>
-    </div>
+    <div>Monopoly — <span id="who" class="tag"></span> <span id="roomTag" class="tag" style="margin-left:8px; background:#eaf7ef; color:#1a7f46;"></span></div>
     <div>
       <button id="rollBtn" class="btn" disabled>Roll Dice</button>
       <button id="leaveBtn" class="btn red">Leave</button>
     </div>
   </header>
 
-  <div class="wrap">
-    <div class="panel">
-      <h3>Players <span id="countTag" class="tag" style="margin-left:6px;"></span></h3>
-      <div class="subhead">All currently connected players in this room.</div>
-      <div id="players"></div>
-
-      <h3 style="margin:16px 0 6px;">Events</h3>
-      <div class="subhead">Live server messages & logs (read-only).</div>
-      <div id="log" class="log" aria-live="polite"></div>
-    </div>
-
+  <!-- BOARD TOP -->
+  <section class="boardTop">
     <div class="board-wrap">
       <div class="board" id="board"></div>
-      <!-- absolute token grid over the board cells -->
       <div class="tokens" id="tokens"></div>
     </div>
-  </div>
+  </section>
+
+  <!-- PANELS BOTTOM -->
+  <section class="bottomRow">
+    <div class="panel">
+      <h3>Players <span id="countTag" class="tag" style="margin-left:6px;"></span></h3>
+      <div class="subhead">Currently connected in this room.</div>
+      <div id="players"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Events</h3>
+      <div class="subhead">Live server messages & actions.</div>
+      <div id="log" class="log" aria-live="polite"></div>
+    </div>
+  </section>
 
   <script>
-    /**************
-     * WS basics  *
-     **************/
-    const WS_URL     = "ws://localhost:8080/ws";
+    /* Identity & endpoints */
+    const WS_URL   = "ws://localhost:8080/ws";
+    const API_ROLL = "http://localhost:8080/roll";
     const playerId   = sessionStorage.getItem("playerId") || crypto.randomUUID();
     const playerName = sessionStorage.getItem("playerName") || "Player-" + playerId.slice(0,4);
     const gameId     = sessionStorage.getItem("gameId") || "007";
-
     sessionStorage.setItem("playerId", playerId);
     sessionStorage.setItem("playerName", playerName);
     sessionStorage.setItem("gameId", gameId);
 
+    /* DOM */
     const who = document.getElementById('who');
     const roomTag = document.getElementById('roomTag');
     const countTag = document.getElementById('countTag');
@@ -149,20 +111,17 @@
     const boardEl = document.getElementById('board');
     const tokensEl = document.getElementById('tokens');
 
-    who.textContent = `${playerName} (${playerId.slice(0, 6)}…)`;
+    who.textContent = `${playerName} (${playerId.slice(0,6)}…)`;
     roomTag.textContent = `Room: ${gameId}`;
 
+    /* State */
     let ws;
-    let roster = new Map();            // id -> {id, name}
-    let positions = Object.create(null); // id -> tileIndex (0..39)
-    const colors = {};                 // id -> token color
+    let roster = new Map();            // id -> {id,name}
+    let positions = Object.create(null); // id -> 0..39
+    const colors = {};
 
-    /*****************
-     * Board Layout  *
-     *****************/
-    // 40 tiles around the edge, starting GO (0) and clockwise
+    /* Tiles (GO=0 clockwise) */
     const tiles = [
-      // bottom row (right-to-left in DOM perspective but we'll compute mapping)
       { name:"GO", type:"corner" },
       { name:"Mediterranean Avenue", band:"#955436", icon:"🏠" },
       { name:"Community Chest", type:"chest", icon:"🧰" },
@@ -205,293 +164,156 @@
       { name:"Boardwalk", band:"#0072bb", icon:"🏙️" },
     ];
 
-    // Build a mapping tileIndex -> grid cell (row/col) on the 11x11 grid
+    /* Map tile index -> 11x11 grid coords */
     const gridMap = (() => {
       const coords = new Array(40);
-      // Bottom row: (row 11, col 11 -> 1) in visual, but our grid is 1..11
-      let r = 11, c = 11;
-      // 0..10 (right to left along bottom)
-      for (let i=0;i<=10;i++) coords[i] = {r:11, c:11-i};
-      // 11..20 (bottom to top along left)
-      for (let i=1;i<=10;i++) coords[10+i] = {r:11-i, c:1};
-      // 21..30 (left to right along top)
-      for (let i=1;i<=10;i++) coords[20+i] = {r:1, c:i+1};
-      // 31..39 (top to bottom along right)
-      for (let i=1;i<=9;i++) coords[30+i] = {r:i+1, c:11};
+      for (let i=0;i<=10;i++) coords[i] = {r:11, c:11-i};       // bottom row, right→left
+      for (let i=1;i<=10;i++) coords[10+i] = {r:11-i, c:1};     // left col, bottom→top
+      for (let i=1;i<=10;i++) coords[20+i] = {r:1, c:i+1};      // top row, left→right
+      for (let i=1;i<=9;i++)  coords[30+i] = {r:i+1, c:11};     // right col, top→bottom
       return coords;
     })();
 
-    // Build board DOM with icons/images & color bands
+    /* Build board */
     function buildBoard() {
       boardEl.innerHTML = "";
-      // Top-left corner in DOM is GO's opposite; we’ll place by grid-area with style
       for (let i=0;i<40;i++) {
-        const t = tiles[i];
-        const {r,c} = gridMap[i];
-        const cell = document.createElement("div");
-        cell.className = "tile" + (t.type==="corner" ? " corner" : "");
-        cell.style.gridRow = r;
-        cell.style.gridColumn = c;
-        cell.dataset.index = i;
-        // Color band for properties
-        if (t.band) {
-          const band = document.createElement("div");
-          band.className = "band";
-          band.style.background = t.band;
-          cell.appendChild(band);
-        }
-        // Icon + name
-        const ic = document.createElement("div");
-        ic.className = "icon";
-        ic.textContent = t.icon || "⬜";
-        const nm = document.createElement("div");
-        nm.className = "name";
-        nm.textContent = shortName(t.name);
-        cell.appendChild(ic);
-        cell.appendChild(nm);
-        boardEl.appendChild(cell);
+        const t = tiles[i]; const {r,c} = gridMap[i];
+        const d = document.createElement('div');
+        d.className = "tile" + (t.type==="corner" ? " corner":"");
+        d.style.gridRow = r; d.style.gridColumn = c;
+        if (t.band) { const b = document.createElement("div"); b.className="band"; b.style.background=t.band; d.appendChild(b); }
+        const ic = document.createElement("div"); ic.className="icon"; ic.textContent = t.icon || "⬜";
+        const nm = document.createElement("div"); nm.className="name"; nm.textContent = shortName(t.name);
+        d.appendChild(ic); d.appendChild(nm);
+        boardEl.appendChild(d);
       }
-
-      // Fill center
-      const center = document.createElement("div");
-      center.className = "center";
-      center.textContent = "MONOPOLY";
-      center.style.gridRow = "2 / 11";
-      center.style.gridColumn = "2 / 11";
+      const center = document.createElement('div'); center.className="center"; center.textContent="MONOPOLY";
       boardEl.appendChild(center);
     }
-
-    // Helper to shorten street labels for tighter tiles
-    function shortName(n) {
-      return n.replace("Avenue","Ave").replace("Railroad","RR").replace("Pennsylvania","Penn").replace("Carolina","Car.")
-              .replace("Community Chest","Chest").replace("Electric Company","Electric Co.").replace("Water Works","Water");
+    function shortName(n){
+      return n.replace("Avenue","Ave").replace("Railroad","RR").replace("Pennsylvania","Penn")
+              .replace("Carolina","Car.").replace("Community Chest","Chest")
+              .replace("Electric Company","Electric Co.").replace("Water Works","Water");
     }
 
-    /*****************
-     * Token Render  *
-     *****************/
-    // place a token onto the token-grid near a tile cell with small offset to avoid overlap
+    /* Tokens & positions */
     function ensureToken(pid, name) {
       let el = document.getElementById("t_"+pid);
       if (!el) {
         el = document.createElement("div");
-        el.id = "t_"+pid;
-        el.className = "token";
-        const initial = (name||"?").trim()[0]?.toUpperCase() || "?";
-        el.dataset.initial = initial;
-        // deterministic color per id
+        el.id = "t_"+pid; el.className = "token";
+        el.dataset.initial = (name||"?").trim()[0]?.toUpperCase() || "?";
         colors[pid] = colors[pid] || pickColor(pid);
         el.style.setProperty("--token", colors[pid]);
         tokensEl.appendChild(el);
       }
       return el;
     }
-
     function moveToken(pid, toIndex) {
       const pos = Math.max(0, Math.min(39, toIndex|0));
       positions[pid] = pos;
       const {r,c} = gridMap[pos];
       const el = ensureToken(pid, roster.get(pid)?.name || "");
-      // token lives inside a grid cell; add slight random offset based on pid hash
       const {dx,dy} = tinyOffset(pid);
-      el.style.gridRow = r;
-      el.style.gridColumn = c;
-      el.style.setProperty("--tx", dx+"px");
-      el.style.setProperty("--ty", dy+"px");
+      el.style.gridRow = r; el.style.gridColumn = c;
+      el.style.setProperty("--tx", dx+"px"); el.style.setProperty("--ty", dy+"px");
     }
-
-    function pickColor(id) {
-      // pretty palette
-      const palette = ["#1f6feb","#d64545","#1fb25a","#7c3aed","#eab308","#ef4444","#06b6d4","#f97316","#3b82f6","#16a34a"];
-      let h=0; for (let i=0;i<id.length;i++) h = (h*33 + id.charCodeAt(i))>>>0;
-      return palette[h % palette.length];
-    }
-    function tinyOffset(id) {
-      let h=0; for (let i=0;i<id.length;i++) h = (h*31 + id.charCodeAt(i))>>>0;
-      const dx = ((h & 7) - 3) * 3;     // -9..+9 px
-      const dy = (((h>>3) & 7) - 3) * 3;
-      return {dx,dy};
-    }
-
-    /*****************
-     * UI + Logging  *
-     *****************/
-    function timeStr() { return new Date().toLocaleTimeString(); }
-    function logLine(text, cls = "sys") {
-      const line = document.createElement("div");
-      line.className = cls;
-      line.textContent = `[${timeStr()}] ${text}`;
-      logEl.appendChild(line);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-    function logInbound(payload) {
-      const line = document.createElement("div");
-      line.className = "in";
-      line.textContent = `[${timeStr()}] ← ${payload}`;
-      logEl.appendChild(line);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-    function logOutbound(obj) {
-      const line = document.createElement("div");
-      line.className = "out";
-      line.textContent = `[${timeStr()}] → ${JSON.stringify(obj)}`;
-      logEl.appendChild(line);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-    }
-    function renderPlayers(list) {
-      roster = new Map(list.map(p => [p.id, p]));
-      playersEl.innerHTML = "";
-      countTag.textContent = `${list.length}/10`;
-      list.forEach(p => {
-        const div = document.createElement('div');
-        div.className = "roster-item";
-        const isMe = (p.id === playerId);
-        div.innerHTML = `
-          <div>
-            <span class="pill ${isMe ? 'me' : ''}">${isMe ? 'You' : 'Player'}</span>
-            <strong>${escapeHtml(p.name || '')}</strong>
-          </div>
-          <div class="id">${escapeHtml(p.id.slice(0,6))}…</div>
-        `;
-        playersEl.appendChild(div);
-
-        // ensure a token exists; if we don't know position yet, put at GO
-        if (!(p.id in positions)) moveToken(p.id, 0);
-      });
-      // prune tokens for players who left
-      Array.from(tokensEl.children).forEach(tok => {
-        const pid = tok.id.slice(2);
-        if (!roster.has(pid)) tok.remove();
-      });
-    }
-
-    /*****************
-     * WebSocket     *
-     *****************/
-    function send(obj) {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(obj));
-        logOutbound(obj);
-      }
-    }
-
-    function connect() {
-      ws = new WebSocket(WS_URL);
-      ws.onopen = () => {
-        logLine("Connected to server.");
-        send({ type: "resume", playerId, name: playerName, room: gameId });
-        send({ type: "subscribeLogs", room: gameId });
-        send({ type: "who", room: gameId });
+    function animateMove(pid, from, to) {
+      let steps = ((to - from) + 40) % 40;
+      if (steps === 0 && from !== to) steps = 40;
+      let cur = from, i=0;
+      const hop = () => {
+        cur = (cur + 1) % 40; moveToken(pid, cur);
+        if (++i < steps) setTimeout(hop, 80);
       };
-      ws.onmessage = (ev) => {
-        const raw = ev.data;
-        logInbound(typeof raw === "string" ? raw : "[binary]");
-        let msg; try { msg = JSON.parse(raw); } catch { return; }
+      hop();
+    }
+    function pickColor(id){ const p=["#1f6feb","#d64545","#1fb25a","#7c3aed","#eab308","#ef4444","#06b6d4","#f97316","#3b82f6","#16a34a"]; let h=0; for (let i=0;i<id.length;i++) h=(h*33+id.charCodeAt(i))>>>0; return p[h%p.length]; }
+    function tinyOffset(id){ let h=0; for (let i=0;i<id.length;i++) h=(h*31+id.charCodeAt(i))>>>0; return {dx:((h&7)-3)*3, dy:(((h>>3)&7)-3)*3}; }
 
-        switch (msg.type) {
-          case "players": renderPlayers(msg.list || []); break;
-          case "playerJoined":
-            if (msg.player) { roster.set(msg.player.id, msg.player); renderPlayers([...roster.values()]); }
-            break;
-          case "playerLeft":
-            if (msg.player) { roster.delete(msg.player.id); renderPlayers([...roster.values()]); }
-            break;
-          case "yourTurn":
-            rollBtn.disabled = !msg.canRoll;
-            if (msg.canRoll) logLine("It's your turn!");
-            break;
+    /* Logging & roster */
+    function t(){ return new Date().toLocaleTimeString(); }
+    function logLine(text, cls="sys"){ const d=document.createElement('div'); d.className=cls; d.textContent=`[${t()}] ${text}`; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
+    function logInbound(payload){ const d=document.createElement('div'); d.className='in'; d.textContent=`[${t()}] ← ${payload}`; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight; }
+    function logOutbound(obj){ const d=document.createElement('div'); d.className='out'; d.textContent=`[${t()}] → ${JSON.stringify(obj)}`; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight; }
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+    function renderPlayers(list){
+      roster = new Map(list.map(p => [p.id, p]));
+      playersEl.innerHTML = ""; countTag.textContent = `${list.length}/10`;
+      list.forEach(p => {
+        const el=document.createElement('div'); el.className='roster-item';
+        const me = p.id===playerId;
+        el.innerHTML = `<div><span class="pill ${me?'me':''}">${me?'You':'Player'}</span> <strong>${escapeHtml(p.name||'')}</strong></div><div class="id">${escapeHtml(p.id.slice(0,6))}…</div>`;
+        playersEl.appendChild(el);
+        if (!(p.id in positions)) moveToken(p.id, 0); // INITIAL AT GO
+      });
+      // prune tokens of leavers
+      Array.from(tokensEl.children).forEach(tok => { const pid = tok.id.slice(2); if (!roster.has(pid)) tok.remove(); });
+    }
+
+    /* WebSocket */
+    function send(obj){ if (ws && ws.readyState===WebSocket.OPEN){ ws.send(JSON.stringify(obj)); logOutbound(obj); } }
+    function connect(){
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => { logLine("Connected."); send({type:"resume", playerId, name:playerName, room:gameId}); send({type:"subscribeLogs", room:gameId}); send({type:"who", room:gameId}); };
+      ws.onmessage = ev => {
+        const raw = ev.data; logInbound(typeof raw==="string"?raw:"[binary]");
+        let msg; try{ msg=JSON.parse(raw) } catch { return; }
+        switch(msg.type){
+          case "players": renderPlayers(msg.list||[]); break;
+          case "playerJoined": if (msg.player){ roster.set(msg.player.id,msg.player); renderPlayers([...roster.values()]); } break;
+          case "playerLeft": if (msg.player){ roster.delete(msg.player.id); renderPlayers([...roster.values()]); } break;
+          case "yourTurn": rollBtn.disabled = !msg.canRoll; if (msg.canRoll) logLine("It's your turn!"); break;
           case "event":
           case "log":
-          case "serverLog":
-            if (msg.text) logLine(msg.text);
-            break;
-
-          // NEW: animate tokens via either snapshot or delta
-          case "move": {
-            const pid = msg.playerId;
-            const from = Number(msg.from ?? positions[pid] ?? 0);
-            const to   = Number(msg.to ?? from);
-            if (pid) {
-              // animate hop through intermediate tiles for flair
-              let steps = ((to - from) + 40) % 40;
-              if (steps === 0 && from !== to) steps = 40;
-              let cur = from;
-              let i = 0;
-              const hop = () => {
-                cur = (cur + 1) % 40;
-                moveToken(pid, cur);
-                if (++i < steps) setTimeout(hop, 80);
-              };
-              hop();
-            }
-            break;
-          }
-          case "state": {
-            // expect: { positions: { pid: index, ... } }
-            if (msg.positions && typeof msg.positions === "object") {
-              Object.entries(msg.positions).forEach(([pid, idx]) => moveToken(pid, idx));
-            }
-            break;
-          }
-
-          default:
-            logLine(`JSON: ${JSON.stringify(msg, null, 2)}`);
+          case "serverLog": if (msg.text) logLine(msg.text); break;
+          case "move": { const pid=msg.playerId; if (!pid) break; const from=Number(msg.from ?? positions[pid] ?? 0); const to=Number(msg.to ?? from); animateMove(pid, from, to); break; }
+          case "state": { if (msg.positions && typeof msg.positions==="object"){ Object.entries(msg.positions).forEach(([pid, idx]) => moveToken(pid, idx)); } break; }
+          default: logLine(`JSON: ${JSON.stringify(msg, null, 2)}`);
         }
       };
-      ws.onclose = () => { logLine("Disconnected."); rollBtn.disabled = true; retry(); };
+      ws.onclose = () => { logLine("Disconnected."); rollBtn.disabled=true; retry(); };
       ws.onerror  = () => { logLine("WebSocket error."); };
     }
+    let retries=0; function retry(){ const d=Math.min(1000*Math.pow(2,retries++), 8000); setTimeout(connect, d); }
+    setInterval(() => { send({type:"ping", t:Date.now(), room:gameId}); }, 25000);
 
-    // reconnect
-    let retries = 0;
-    function retry() {
-      const delay = Math.min(1000 * Math.pow(2, retries++), 8000);
-      setTimeout(connect, delay);
-    }
-
-    // keep-alive
-    setInterval(() => { send({ type: "ping", t: Date.now(), room: gameId }); }, 25000);
-
-    rollBtn.addEventListener('click', () => {
-        fetch('http://localhost:8080/roll', { method: 'POST' })
-        .then(response => response.text())
-        .then(data => {
-          const dice = data.trim().split('\n').map(n => parseInt(n, 10)).filter(n => !isNaN(n) && n >= 1 && n <= 6);
-          if (dice.length === 2) {
-            const total = dice[0] + dice[1];
-            logLine(`You rolled a ${dice[0]} and a ${dice[1]} (total ${total}).`);
-            send({ type: "roll", playerId, room: gameId, dice });
-            rollBtn.disabled = true;
-          } else {
-            logLine("Failed to get valid dice from random.org.", "sys");
-          }
-        })
-        .catch(() => {
-          logLine("Error fetching dice from random.org.", "sys");
-        });
-      // Fallback: if random.org fails, use local random (not ideal for real game)
-      // const die1 = 1 + Math.floor(Math.random() * 6);
-      // const die2 = 1 + Math.floor(Math.random() * 6);
-      // logLine(`You rolled a ${die1} and a ${die2} (total ${die1 + die2}).`);
-      //    
-      send({ type: "roll", playerId, room: gameId });
+    /* Roll (server-authoritative) */
+    rollBtn.addEventListener('click', async () => {
       rollBtn.disabled = true;
+      try {
+        const res = await fetch(API_ROLL, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ playerId, room: gameId, name: playerName })
+        });
+        const payload = await (async()=>{ try{ return await res.json(); }catch{ return null; }})();
+        if (!res.ok) {
+          logLine(`Roll failed: ${res.status} ${res.statusText}${payload?.error? " — "+payload.error:""}`);
+          return;
+        }
+        const d = Array.isArray(payload?.dice) ? payload.dice : [];
+        const total = Number(payload?.total ?? ((d[0]||0)+(d[1]||0)));
+        const from = Number(positions[playerId] ?? 0);
+        const to = (from + (isFinite(total)? total:0)) % 40;
+        logLine(`You rolled ${d[0]} and ${d[1]} (total ${total}).`);
+        // animate immediately; server may also broadcast "move"
+        animateMove(playerId, from, to);
+      } catch (e) {
+        logLine(`Error calling /roll: ${e}`);
+      }
+      // re-enable is controlled by server via "yourTurn"
     });
 
     leaveBtn.addEventListener('click', () => {
-      try { send({ type: "leave", playerId, room: gameId }); ws && ws.close(1000); } catch {}
-      sessionStorage.removeItem("playerId");
-      sessionStorage.removeItem("playerName");
-      sessionStorage.removeItem("gameId");
-      window.location.href = "/";
+      try { send({ type:"leave", playerId, room:gameId }); ws && ws.close(1000); } catch {}
+      sessionStorage.removeItem("playerId"); sessionStorage.removeItem("playerName"); sessionStorage.removeItem("gameId");
+      window.location.href = "index.html";
     });
 
-    // build UI
-    buildBoard();
-    connect();
+    // Init
+    buildBoard(); connect();
   </script>
 </body>
 </html>
