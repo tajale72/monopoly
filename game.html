@@ -116,9 +116,17 @@
 
     /* State */
     let ws;
-    let roster = new Map();            // id -> {id,name}
-    let positions = Object.create(null); // id -> 0..39
+    let roster = new Map();               // id -> {id,name}
+    let positions = Object.create(null);  // id -> 0..39
     const colors = {};
+    let lastVersion = 0;                  // server state version (if provided)
+
+    function isNewer(msg) {
+      if (typeof msg?.version !== "number") return true; // no versioning → accept
+      if (msg.version <= lastVersion) return false;
+      lastVersion = msg.version;
+      return true;
+    }
 
     /* Tiles (GO=0 clockwise) */
     const tiles = [
@@ -237,7 +245,7 @@
     function logLine(text, cls="sys"){ const d=document.createElement('div'); d.className=cls; d.textContent=`[${t()}] ${text}`; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
     function logInbound(payload){ const d=document.createElement('div'); d.className='in'; d.textContent=`[${t()}] ← ${payload}`; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight; }
     function logOutbound(obj){ const d=document.createElement('div'); d.className='out'; d.textContent=`[${t()}] → ${JSON.stringify(obj)}`; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight; }
-    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;"," >":"&gt;","\"":"&quot;","'":"&#39;"}[c] || c)); }
     function renderPlayers(list){
       roster = new Map(list.map(p => [p.id, p]));
       playersEl.innerHTML = ""; countTag.textContent = `${list.length}/10`;
@@ -256,21 +264,71 @@
     function send(obj){ if (ws && ws.readyState===WebSocket.OPEN){ ws.send(JSON.stringify(obj)); logOutbound(obj); } }
     function connect(){
       ws = new WebSocket(WS_URL);
-      ws.onopen = () => { logLine("Connected."); send({type:"resume", playerId, name:playerName, room:gameId}); send({type:"subscribeLogs", room:gameId}); send({type:"who", room:gameId}); };
+      ws.onopen = () => {
+        logLine("Connected.");
+        // Resume & request state snapshot so everyone is aligned
+        send({type:"resume", playerId, name:playerName, room:gameId});
+        send({type:"subscribeLogs", room:gameId});
+        send({type:"who", room:gameId});
+        send({type:"sync", room:gameId});
+      };
       ws.onmessage = ev => {
         const raw = ev.data; logInbound(typeof raw==="string"?raw:"[binary]");
         let msg; try{ msg=JSON.parse(raw) } catch { return; }
+
         switch(msg.type){
-          case "players": renderPlayers(msg.list||[]); break;
-          case "playerJoined": if (msg.player){ roster.set(msg.player.id,msg.player); renderPlayers([...roster.values()]); } break;
-          case "playerLeft": if (msg.player){ roster.delete(msg.player.id); renderPlayers([...roster.values()]); } break;
-          case "yourTurn": rollBtn.disabled = !msg.canRoll; if (msg.canRoll) logLine("It's your turn!"); break;
+          case "players":
+            renderPlayers(msg.list||[]);
+            break;
+
+          case "playerJoined":
+            if (msg.player){ roster.set(msg.player.id,msg.player); renderPlayers([...roster.values()]); }
+            break;
+
+          case "playerLeft":
+            if (msg.player){ roster.delete(msg.player.id); renderPlayers([...roster.values()]); }
+            break;
+
+          case "yourTurn":
+            rollBtn.disabled = !msg.canRoll;
+            if (msg.canRoll) logLine("It's your turn!");
+            break;
+
           case "event":
           case "log":
-          case "serverLog": if (msg.text) logLine(msg.text); break;
-          case "move": { const pid=msg.playerId; if (!pid) break; const from=Number(msg.from ?? positions[pid] ?? 0); const to=Number(msg.to ?? from); animateMove(pid, from, to); break; }
-          case "state": { if (msg.positions && typeof msg.positions==="object"){ Object.entries(msg.positions).forEach(([pid, idx]) => moveToken(pid, idx)); } break; }
-          default: logLine(`JSON: ${JSON.stringify(msg, null, 2)}`);
+          case "serverLog":
+            if (msg.text) logLine(msg.text);
+            break;
+
+          case "move": {
+            if (!isNewer(msg)) return;
+            const pid = msg.playerId;
+            if (!pid) break;
+            const from = Number(positions[pid] ?? 0);
+            const to   = Number(msg.to ?? from);
+            // Animate according to server; do NOT move locally elsewhere
+            animateMove(pid, from, ((to % 40) + 40) % 40);
+            break;
+          }
+
+          case "state": {
+            if (!isNewer(msg)) return;
+            // Apply a snapshot from server (optional animate small deltas)
+            if (msg.positions && typeof msg.positions==="object"){
+              Object.entries(msg.positions).forEach(([pid, idx]) => {
+                const cur = Number(positions[pid] ?? 0);
+                const target = Number(idx ?? cur);
+                if (cur !== target) animateMove(pid, cur, ((target % 40)+40)%40);
+              });
+            }
+            if (msg.turn) {
+              rollBtn.disabled = (msg.turn !== playerId);
+            }
+            break;
+          }
+
+          default:
+            logLine(`JSON: ${JSON.stringify(msg, null, 2)}`);
         }
       };
       ws.onclose = () => { logLine("Disconnected."); rollBtn.disabled=true; retry(); };
@@ -281,7 +339,7 @@
 
     /* Roll (server-authoritative) */
     rollBtn.addEventListener('click', async () => {
-      rollBtn.disabled = true;
+      rollBtn.disabled = true; // server will re-enable on "yourTurn"
       try {
         const res = await fetch(API_ROLL, {
           method: 'POST',
@@ -291,19 +349,20 @@
         const payload = await (async()=>{ try{ return await res.json(); }catch{ return null; }})();
         if (!res.ok) {
           logLine(`Roll failed: ${res.status} ${res.statusText}${payload?.error? " — "+payload.error:""}`);
+          // ask server to resync us if something failed
+          send({type:"sync", room:gameId});
           return;
         }
-        const d = Array.isArray(payload?.dice) ? payload.dice : [];
-        const total = Number(payload?.total ?? ((d[0]||0)+(d[1]||0)));
-        const from = Number(positions[playerId] ?? 0);
-        const to = (from + (isFinite(total)? total:0)) % 40;
-        logLine(`You rolled ${d[0]} and ${d[1]} (total ${total}).`);
-        // animate immediately; server may also broadcast "move"
-        animateMove(playerId, from, to);
+        // No local movement here—wait for server "move"/"state"
+        if (payload?.dice?.length === 2) {
+          logLine(`Roll requested. Server dice: ${payload.dice[0]} & ${payload.dice[1]} (total ${Number(payload.total ?? (payload.dice[0]+payload.dice[1]))}).`);
+        } else {
+          logLine(`Roll requested.`);
+        }
       } catch (e) {
         logLine(`Error calling /roll: ${e}`);
+        send({type:"sync", room:gameId});
       }
-      // re-enable is controlled by server via "yourTurn"
     });
 
     leaveBtn.addEventListener('click', () => {

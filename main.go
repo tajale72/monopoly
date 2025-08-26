@@ -125,7 +125,6 @@ func main() {
 /* ===== REST: /roll ===== */
 
 func rollHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Println("HTTP /roll", r.RemoteAddr)
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -148,6 +147,8 @@ func rollHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "player not connected in room", http.StatusNotFound)
 		return
 	}
+
+	log.Println("Rolling Dice...", c.Name, short(c.ID), "in room", req.Room)
 
 	// Turn check
 	holder := getTurnHolder(req.Room)
