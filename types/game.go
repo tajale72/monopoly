@@ -41,7 +41,7 @@ func (p *Players) Move(position int) {
 		return
 	}
 
-	p.AskUserToBuyProperty(property)
+	//p.AskUserToBuyProperty(property)
 
 	for _, property := range TestDataProperty {
 		if p.CheckProperty(property) {

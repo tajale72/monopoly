@@ -71,3 +71,56 @@ var TestDataProperty = map[int]Property{
 	22: {PropertyName: "Park Place", Price: 350, Rent: 35, Owner: ""},
 	23: {PropertyName: "Boardwalk", Price: 400, Rent: 50, Owner: ""},
 }
+
+type Tile struct {
+	Name  string
+	Type  string // corner, property, rail, util, chance, chest, tax
+	Band  string // color hex if property
+	Icon  string // emoji
+	Price int
+	Rent  int
+	Owner string
+}
+
+var Board = map[int]Tile{
+	0:  {Name: "GO", Type: "corner", Icon: "🚩"},
+	1:  {Name: "Mediterranean Avenue", Type: "property", Band: "#955436", Icon: "🏠", Price: 60, Rent: 2},
+	2:  {Name: "Community Chest", Type: "chest", Icon: "🧰"},
+	3:  {Name: "Baltic Avenue", Type: "property", Band: "#955436", Icon: "🏠", Price: 60, Rent: 4},
+	4:  {Name: "Income Tax", Type: "tax", Icon: "💵"},
+	5:  {Name: "Reading Railroad", Type: "rail", Icon: "🚂", Price: 200, Rent: 25},
+	6:  {Name: "Oriental Avenue", Type: "property", Band: "#aae0fa", Icon: "🏢", Price: 100, Rent: 6},
+	7:  {Name: "Chance", Type: "chance", Icon: "❓"},
+	8:  {Name: "Vermont Avenue", Type: "property", Band: "#aae0fa", Icon: "🏢", Price: 100, Rent: 6},
+	9:  {Name: "Connecticut Avenue", Type: "property", Band: "#aae0fa", Icon: "🏢", Price: 120, Rent: 8},
+	10: {Name: "Jail / Just Visiting", Type: "corner", Icon: "🚓"},
+	11: {Name: "St. Charles Place", Type: "property", Band: "#d93a96", Icon: "🏘️", Price: 140, Rent: 10},
+	12: {Name: "Electric Company", Type: "util", Icon: "💡", Price: 150, Rent: 10},
+	13: {Name: "States Avenue", Type: "property", Band: "#d93a96", Icon: "🏘️", Price: 140, Rent: 10},
+	14: {Name: "Virginia Avenue", Type: "property", Band: "#d93a96", Icon: "🏘️", Price: 160, Rent: 12},
+	15: {Name: "Pennsylvania Railroad", Type: "rail", Icon: "🚆", Price: 200, Rent: 25},
+	16: {Name: "St. James Place", Type: "property", Band: "#f7941d", Icon: "🏨", Price: 180, Rent: 14},
+	17: {Name: "Community Chest", Type: "chest", Icon: "🧰"},
+	18: {Name: "Tennessee Avenue", Type: "property", Band: "#f7941d", Icon: "🏨", Price: 180, Rent: 14},
+	19: {Name: "New York Avenue", Type: "property", Band: "#f7941d", Icon: "🏨", Price: 200, Rent: 16},
+	20: {Name: "Free Parking", Type: "corner", Icon: "🅿️"},
+	21: {Name: "Kentucky Avenue", Type: "property", Band: "#ed1b24", Icon: "🏬", Price: 220, Rent: 18},
+	22: {Name: "Chance", Type: "chance", Icon: "❓"},
+	23: {Name: "Indiana Avenue", Type: "property", Band: "#ed1b24", Icon: "🏬", Price: 220, Rent: 18},
+	24: {Name: "Illinois Avenue", Type: "property", Band: "#ed1b24", Icon: "🏬", Price: 240, Rent: 20},
+	25: {Name: "B. & O. Railroad", Type: "rail", Icon: "🚄", Price: 200, Rent: 25},
+	26: {Name: "Atlantic Avenue", Type: "property", Band: "#fef200", Icon: "🏢", Price: 260, Rent: 22},
+	27: {Name: "Ventnor Avenue", Type: "property", Band: "#fef200", Icon: "🏢", Price: 260, Rent: 22},
+	28: {Name: "Water Works", Type: "util", Icon: "🚰", Price: 150, Rent: 10},
+	29: {Name: "Marvin Gardens", Type: "property", Band: "#fef200", Icon: "🏢", Price: 280, Rent: 24},
+	30: {Name: "Go To Jail", Type: "corner", Icon: "🚓"},
+	31: {Name: "Pacific Avenue", Type: "property", Band: "#1fb25a", Icon: "🏢", Price: 300, Rent: 26},
+	32: {Name: "North Carolina Avenue", Type: "property", Band: "#1fb25a", Icon: "🏢", Price: 300, Rent: 26},
+	33: {Name: "Community Chest", Type: "chest", Icon: "🧰"},
+	34: {Name: "Pennsylvania Avenue", Type: "property", Band: "#1fb25a", Icon: "🏢", Price: 320, Rent: 28},
+	35: {Name: "Short Line", Type: "rail", Icon: "🚃", Price: 200, Rent: 25},
+	36: {Name: "Chance", Type: "chance", Icon: "❓"},
+	37: {Name: "Park Place", Type: "property", Band: "#0072bb", Icon: "🏙️", Price: 350, Rent: 35},
+	38: {Name: "Luxury Tax", Type: "tax", Icon: "💎"},
+	39: {Name: "Boardwalk", Type: "property", Band: "#0072bb", Icon: "🏙️", Price: 400, Rent: 50},
+}

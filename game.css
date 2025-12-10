@@ -1,0 +1,593 @@
+:root {
+    font-family: system-ui, Arial, sans-serif;
+    --brand: #1f6feb;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: linear-gradient(180deg, #f4f7fb 0%, #eef2f8 100%);
+    color: #0b1220;
+}
+
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, .06);
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+.tag {
+    background: #eef2ff;
+    color: #1f3bb3;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: .9rem;
+}
+
+.btn {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: none;
+    background: var(--brand);
+    color: #fff;
+    cursor: pointer;
+    font-weight: 700;
+    box-shadow: 0 6px 14px rgba(31, 111, 235, .2);
+}
+
+.btn:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.btn.red {
+    background: #d64545;
+    box-shadow: 0 6px 14px rgba(214, 69, 69, .18);
+}
+
+/* Layout */
+.boardTop {
+    width: 100%;
+    height: 80vh;
+    display: grid;
+    place-items: center;
+    padding: 12px;
+}
+
+.board-wrap {
+    position: relative;
+    width: min(1200px, 96vw);
+    height: 100%;
+}
+
+.board {
+    background: #fff;
+    padding: 16px;
+    border-radius: 20px;
+    box-shadow: 0 14px 44px rgba(0, 0, 0, .10);
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(11, 1fr);
+    grid-template-rows: repeat(11, 1fr);
+    user-select: none;
+    transform: perspective(1600px) rotateX(2deg);
+    transition: transform .4s ease, box-shadow .4s ease;
+}
+
+.board:hover {
+    transform: perspective(1600px) rotateX(0deg);
+    box-shadow: 0 18px 60px rgba(0, 0, 0, .14);
+}
+
+.tile {
+    border: 1px solid #e2e6ef;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(.55rem, .8vw, .75rem);
+    text-align: center;
+    padding: 4px;
+    position: relative;
+    background: #fbfcff;
+    transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.tile:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, .06);
+    background: #fff;
+}
+
+.tile .icon {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.tile .name {
+    margin-top: 2px;
+}
+
+.tile .band {
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 6px;
+}
+
+.corner {
+    font-weight: 700;
+    background: linear-gradient(180deg, #f9fbff 0%, #f1f4fb 100%);
+}
+
+/* Center area with diagonal decks */
+.center {
+    grid-column: 2/11;
+    grid-row: 2/11;
+    display: grid;
+    place-items: center;
+    border: 2px dashed #e2e6ef;
+    border-radius: 12px;
+    font-weight: 800;
+    color: #7e8aa1;
+    letter-spacing: .12em;
+    font-size: clamp(1rem, 2vw, 1.6rem);
+    position: relative;
+}
+
+.center .title {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-weight: 900;
+    letter-spacing: .18em;
+    opacity: .35;
+}
+
+.decks {
+    display: flex;
+    gap: 28px;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.deck {
+    position: relative;
+    width: 150px;
+    height: 100px;
+    cursor: pointer;
+    user-select: none;
+    transition: transform .22s ease;
+}
+
+.deck .stack {
+    position: absolute;
+    inset: 0;
+}
+
+.deck .card {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    border: 2px solid #e3e8f5;
+    border-radius: 12px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, .08);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 10px 12px;
+    transition: transform .25s ease, box-shadow .25s ease, filter .2s ease;
+    will-change: transform;
+}
+
+.deck .card:nth-child(1) {
+    transform: translateY(0);
+}
+
+.deck .card:nth-child(2) {
+    transform: translate(6px, 6px) scale(.995);
+    opacity: .95;
+}
+
+.deck .card:nth-child(3) {
+    transform: translate(12px, 12px) scale(.99);
+    opacity: .9;
+}
+
+/* Diagonal tilt per deck */
+.deck.chance {
+    transform: rotate(-10deg);
+}
+
+.deck.chest {
+    transform: rotate(10deg);
+}
+
+.deck:hover .card:nth-child(1) {
+    transform: translateY(-3px) rotate(-1.2deg);
+    box-shadow: 0 16px 28px rgba(0, 0, 0, .12);
+}
+
+.deck.chance .card {
+    border-color: #fde68a;
+}
+
+.deck.chest .card {
+    border-color: #c7e1ff;
+}
+
+.deck .label {
+    font-weight: 900;
+    letter-spacing: .12em;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.deck .label .q {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: 2px solid currentColor;
+    font-weight: 900;
+}
+
+.deck.chance .label {
+    color: #a16207;
+}
+
+.deck.chest .label {
+    color: #1e40af;
+}
+
+/* Card modal */
+.cardModal {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+}
+
+.cardModal.show {
+    display: flex;
+}
+
+.cardView {
+    width: min(520px, 86%);
+    background: #fff;
+    border: 2px solid #e3e8f5;
+    border-radius: 16px;
+    box-shadow: 0 18px 44px rgba(0, 0, 0, .22);
+    padding: 18px 18px 14px;
+    text-align: center;
+    animation: pop .2s ease;
+}
+
+.cardView .kicker {
+    font-size: .8rem;
+    letter-spacing: .12em;
+    opacity: .6;
+}
+
+.cardView h4 {
+    margin: 8px 0 12px;
+    font-size: 1.05rem;
+}
+
+.cardView p {
+    margin: 0;
+    color: #3b455c;
+    line-height: 1.35;
+}
+
+.cardView .closeBtn {
+    margin-top: 14px;
+}
+
+@keyframes pop {
+    from {
+        transform: scale(.98);
+        opacity: .0
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1
+    }
+}
+
+.tokens {
+    position: absolute;
+    inset: 16px;
+    display: grid;
+    grid-template-columns: repeat(11, 1fr);
+    grid-template-rows: repeat(11, 1fr);
+    pointer-events: none;
+}
+
+.token {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--token, #1f6feb);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, .25), inset 0 0 10px rgba(255, 255, 255, .6);
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-size: .65rem;
+    font-weight: 700;
+    transition: transform .5s ease;
+    transform: translate(var(--tx, 0), var(--ty, 0));
+}
+
+.token::after {
+    content: attr(data-initial);
+}
+
+.bottomRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 16px;
+}
+
+@media (max-width: 1000px) {
+    .bottomRow {
+        grid-template-columns: 1fr;
+    }
+}
+
+.panel {
+    background: #fff;
+    padding: 16px;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .08);
+    min-height: 220px;
+}
+
+.panel h3 {
+    margin: 0 0 8px;
+}
+
+.subhead {
+    margin: 4px 0 12px;
+    color: #667;
+    font-size: .9rem;
+}
+
+.roster-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border: 1px solid #e6e9f2;
+    border-radius: 10px;
+    margin-bottom: 8px;
+}
+
+.pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: .8rem;
+    background: #eef8ee;
+    color: #176a2f;
+    margin-right: 8px;
+}
+
+.me {
+    background: #e7f1ff;
+    color: #0b55d8;
+}
+
+.id {
+    color: #8a94a6;
+    font-size: .85rem;
+}
+
+.log {
+    background: #0b1020;
+    color: #d8e0ff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 12px;
+    border-radius: 12px;
+    height: 260px;
+    overflow: auto;
+    white-space: pre-wrap;
+}
+
+.log .in {
+    color: #bfe3ff;
+}
+
+.log .out {
+    color: #ffd59e;
+}
+
+.log .sys {
+    color: #c1c8ff;
+}
+
+/* Put decks on an absolute layer inside .center */
+.center .decks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.center .decks .deck {
+    position: absolute;
+    width: 150px;
+    height: 100px;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+/* Diagonal positions near corners (tweak percentages to taste) */
+.center .decks .deck.tl {
+    top: 6%;
+    left: 6%;
+    transform: rotate(-12deg);
+}
+
+.center .decks .deck.br {
+    right: 6%;
+    bottom: 6%;
+    transform: rotate(12deg);
+}
+
+/* Stack & cards stay as you had them */
+.center .decks .deck .stack {
+    position: absolute;
+    inset: 0;
+}
+
+.center .decks .deck .card {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    border: 2px solid #e3e8f5;
+    border-radius: 12px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, .08);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 10px 12px;
+    transition: transform .25s ease, box-shadow .25s ease;
+}
+
+/* Slight stack offset */
+.center .decks .deck .card:nth-child(1) {
+    transform: translateY(0);
+}
+
+.center .decks .deck .card:nth-child(2) {
+    transform: translate(6px, 6px) scale(.995);
+    opacity: .95;
+}
+
+.center .decks .deck .card:nth-child(3) {
+    transform: translate(12px, 12px) scale(.99);
+    opacity: .9;
+}
+
+/* BIG “?” watermark on top card */
+.center .decks .deck .card:nth-child(1)::after {
+    content: "?";
+    position: absolute;
+    right: 10px;
+    bottom: 4px;
+    font-size: 64px;
+    line-height: 1;
+    font-weight: 900;
+    opacity: .18;
+    color: #0b1220;
+}
+
+/* Color accents + label style */
+.center .decks .deck.chance .card {
+    border-color: #fde68a;
+}
+
+.center .decks .deck.chest .card {
+    border-color: #c7e1ff;
+}
+
+.center .decks .deck .label {
+    font-weight: 900;
+    letter-spacing: .12em;
+    margin-bottom: 4px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.center .decks .deck .label .q {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: 2px solid currentColor;
+    font-weight: 900;
+}
+
+.center .decks .deck.chance .label {
+    color: #a16207;
+}
+
+.center .decks .deck.chest .label {
+    color: #1e40af;
+}
+
+/* Small-screen nudge */
+@media (max-width: 900px) {
+    .center .decks .deck {
+        width: 128px;
+        height: 90px;
+    }
+
+    .center .decks .deck.tl {
+        top: 7.5%;
+        left: 7.5%;
+    }
+
+    .center .decks .deck.br {
+        right: 7.5%;
+        bottom: 7.5%;
+    }
+}
+
+
+
+/* Dice overlay inside .board-wrap */
+.board-wrap { position: relative; } /* you already have this, keep it */
+
+.dice-overlay {
+  position: absolute;     /* anchor to the board area */
+  inset: 0;               /* fill the board-wrap */
+  display: none;          /* hidden by default */
+  place-items: center;
+  background: rgba(0,0,0,0.35);
+  z-index: 50;            /* above board & tokens */
+}
+
+.dice-overlay.show { display: grid; }
+
+.dice-box {
+  width: 88px; height: 88px;
+  background: #fff;
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.2rem;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.3);
+  animation: dice-spin 900ms infinite steps(4);
+}
+
+@keyframes dice-spin {
+  0%   { transform: rotate(0deg)   scale(1); }
+  25%  { transform: rotate(90deg)  scale(1.02); }
+  50%  { transform: rotate(180deg) scale(1); }
+  75%  { transform: rotate(270deg) scale(1.02); }
+  100% { transform: rotate(360deg) scale(1); }
+}

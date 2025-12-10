@@ -1,87 +1,45 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <title>Monopoly — Game</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root { font-family: system-ui, Arial, sans-serif; --brand:#1f6feb; }
-    * { box-sizing: border-box; }
-    body { margin:0; background:linear-gradient(180deg,#f4f7fb 0%,#eef2f8 100%); color:#0b1220; }
-    header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; background:#fff; box-shadow:0 2px 12px rgba(0,0,0,.06); position:sticky; top:0; z-index:3; }
-    .tag { background:#eef2ff; color:#1f3bb3; padding:6px 10px; border-radius:999px; font-size:.9rem; }
-    .btn { padding:10px 12px; border-radius:10px; border:none; background:var(--brand); color:#fff; cursor:pointer; font-weight:700; box-shadow:0 6px 14px rgba(31,111,235,.2); }
-    .btn:disabled { opacity:.6; cursor:not-allowed; }
-    .btn.red { background:#d64545; box-shadow:0 6px 14px rgba(214,69,69,.18); }
+  <link rel="stylesheet" href="game.css" />
+  <audio id="sfx-roll" preload="auto" src="assets/sfx/roll.mp3"></audio>
+  <audio id="sfx-move" preload="auto" src="assets/sfx/move.mp3"></audio>
+  <audio id="sfx-buy" preload="auto" src="assets/sfx/buy.mp3"></audio>
 
-    /* Layout: Board on top, 80% viewport height */
-    .boardTop { width:100%; height:80vh; display:grid; place-items:center; padding:12px; }
-    .board-wrap { position:relative; width:min(1200px, 96vw); height:100%; }
-    .board {
-      background:#fff; padding:16px; border-radius:20px; box-shadow:0 14px 44px rgba(0,0,0,.10);
-      width:100%; height:100%;
-      display:grid; grid-template-columns: repeat(11, 1fr); grid-template-rows: repeat(11, 1fr);
-      user-select:none; transform:perspective(1600px) rotateX(2deg); transition:transform .4s ease, box-shadow .4s ease;
-    }
-    .board:hover { transform:perspective(1600px) rotateX(0deg); box-shadow:0 18px 60px rgba(0,0,0,.14); }
-    .tile {
-      border:1px solid #e2e6ef; display:flex; flex-direction:column; align-items:center; justify-content:center;
-      font-size:clamp(.55rem,.8vw,.75rem); text-align:center; padding:4px; position:relative; background:#fbfcff;
-      transition:transform .12s ease, box-shadow .12s ease;
-    }
-    .tile:hover { transform:translateY(-2px) scale(1.02); box-shadow:0 6px 14px rgba(0,0,0,.06); background:#fff; }
-    .tile .icon { font-size:1.1rem; line-height:1; }
-    .tile .name { margin-top:2px; }
-    .tile .band { position:absolute; inset:auto 0 0 0; height:6px; }
-    .corner { font-weight:700; background:linear-gradient(180deg,#f9fbff 0%,#f1f4fb 100%); }
-    .center {
-      grid-column:2/11; grid-row:2/11; display:grid; place-items:center; border:2px dashed #e2e6ef; border-radius:12px;
-      font-weight:800; color:#7e8aa1; letter-spacing:.12em; font-size:clamp(1rem,2vw,1.6rem); position:relative;
-    }
-
-    .tokens { position:absolute; inset:16px; display:grid; grid-template-columns: repeat(11, 1fr); grid-template-rows: repeat(11, 1fr); pointer-events:none; }
-    .token { width:18px; height:18px; border-radius:50%; background:var(--token,#1f6feb); box-shadow:0 4px 10px rgba(0,0,0,.25), inset 0 0 10px rgba(255,255,255,.6); display:grid; place-items:center; color:#fff; font-size:.65rem; font-weight:700; transition:transform .5s ease; transform:translate(var(--tx,0), var(--ty,0)); }
-    .token::after { content:attr(data-initial); }
-
-    /* Bottom row with panels */
-    .bottomRow { display:grid; grid-template-columns: 1fr 1fr; gap:16px; padding:16px; }
-    @media (max-width: 1000px) { .bottomRow { grid-template-columns: 1fr; } }
-    .panel { background:#fff; padding:16px; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.08); min-height:220px; }
-    .panel h3 { margin:0 0 8px; }
-    .subhead { margin:4px 0 12px; color:#667; font-size:.9rem; }
-    .roster-item { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border:1px solid #e6e9f2; border-radius:10px; margin-bottom:8px; }
-    .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:.8rem; background:#eef8ee; color:#176a2f; margin-right:8px; }
-    .me { background:#e7f1ff; color:#0b55d8; }
-    .id { color:#8a94a6; font-size:.85rem; }
-    .log { background:#0b1020; color:#d8e0ff; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; padding:12px; border-radius:12px; height:260px; overflow:auto; white-space:pre-wrap; }
-    .log .in  { color:#bfe3ff; } .log .out { color:#ffd59e; } .log .sys { color:#c1c8ff; }
-  </style>
+  <!-- Optional background music; will start muted until user unmutes -->
+  <audio id="bgm" preload="auto" loop src="assets/music/board-theme.mp3"></audio>
 </head>
+
 <body>
   <header>
-    <div>Monopoly — <span id="who" class="tag"></span> <span id="roomTag" class="tag" style="margin-left:8px; background:#eaf7ef; color:#1a7f46;"></span></div>
+    <div>Monopoly — <span id="who" class="tag"></span> <span id="roomTag" class="tag"
+        style="margin-left:8px; background:#eaf7ef; color:#1a7f46;"></span></div>
     <div>
       <button id="rollBtn" class="btn" disabled>Roll Dice</button>
       <button id="leaveBtn" class="btn red">Leave</button>
     </div>
   </header>
 
-  <!-- BOARD TOP -->
   <section class="boardTop">
     <div class="board-wrap">
       <div class="board" id="board"></div>
+      <div class="dice-overlay" id="diceOverlay">
+        <div class="dice-box" id="diceBox">🎲</div>
+      </div>
       <div class="tokens" id="tokens"></div>
     </div>
   </section>
 
-  <!-- PANELS BOTTOM -->
   <section class="bottomRow">
     <div class="panel">
       <h3>Players <span id="countTag" class="tag" style="margin-left:6px;"></span></h3>
       <div class="subhead">Currently connected in this room.</div>
       <div id="players"></div>
     </div>
-
     <div class="panel">
       <h3>Events</h3>
       <div class="subhead">Live server messages & actions.</div>
@@ -91,14 +49,24 @@
 
   <script>
     /* Identity & endpoints */
-    const WS_URL   = "ws://localhost:8080/ws";
+    const WS_URL = "ws://localhost:8080/ws";
     const API_ROLL = "http://localhost:8080/roll";
-    const playerId   = sessionStorage.getItem("playerId") || crypto.randomUUID();
-    const playerName = sessionStorage.getItem("playerName") || "Player-" + playerId.slice(0,4);
-    const gameId     = sessionStorage.getItem("gameId") || "007";
+    const API_PROPERTY_INFO = "http://localhost:8080/property/info";   // {room, playerId, index}
+    const API_PROPERTY_BUY = "http://localhost:8080/property/buy";    // {room, playerId, index}
+    const API_PROPERTY_AUCTION = "http://localhost:8080/property/auction"; // (unused here)
+
+    const playerId = sessionStorage.getItem("playerId") || crypto.randomUUID();
+    const playerName = sessionStorage.getItem("playerName") || "Player-" + playerId.slice(0, 4);
+    const gameId = sessionStorage.getItem("gameId") || "007";
     sessionStorage.setItem("playerId", playerId);
     sessionStorage.setItem("playerName", playerName);
     sessionStorage.setItem("gameId", gameId);
+
+    const sfxRoll = document.getElementById('sfx-roll');
+    const sfxMove = document.getElementById('sfx-move');
+    const sfxBuy = document.getElementById('sfx-buy');
+    const bgm = document.getElementById('bgm');
+    bgm.volume = 0.25;     // gentle background volume
 
     /* DOM */
     const who = document.getElementById('who');
@@ -111,7 +79,7 @@
     const boardEl = document.getElementById('board');
     const tokensEl = document.getElementById('tokens');
 
-    who.textContent = `${playerName} (${playerId.slice(0,6)}…)`;
+    who.textContent = `${playerName} (${playerId.slice(0, 6)}…)`;
     roomTag.textContent = `Room: ${gameId}`;
 
     /* State */
@@ -119,10 +87,21 @@
     let roster = new Map();               // id -> {id,name}
     let positions = Object.create(null);  // id -> 0..39
     const colors = {};
-    let lastVersion = 0;                  // server state version (if provided)
+    let lastVersion = 0;
+    let myTurn = false;
+
+    let bgmArmed = false;
+    function armBgm() {
+      if (bgmArmed) return;
+      bgmArmed = true;
+      // Try to start background music; ignore failure if user blocks
+      bgm.play().catch(() => { /* user hasn’t allowed yet */ });
+    }
+    // Arm BGM on any initial interaction
+    document.addEventListener('click', armBgm, { once: true });
 
     function isNewer(msg) {
-      if (typeof msg?.version !== "number") return true; // no versioning → accept
+      if (typeof msg?.version !== "number") return true;
       if (msg.version <= lastVersion) return false;
       lastVersion = msg.version;
       return true;
@@ -130,88 +109,231 @@
 
     /* Tiles (GO=0 clockwise) */
     const tiles = [
-      { name:"GO", type:"corner" },
-      { name:"Mediterranean Avenue", band:"#955436", icon:"🏠" },
-      { name:"Community Chest", type:"chest", icon:"🧰" },
-      { name:"Baltic Avenue", band:"#955436", icon:"🏠" },
-      { name:"Income Tax", type:"tax", icon:"💵" },
-      { name:"Reading Railroad", type:"rail", icon:"🚂" },
-      { name:"Oriental Avenue", band:"#aae0fa", icon:"🏢" },
-      { name:"Chance", type:"chance", icon:"❓" },
-      { name:"Vermont Avenue", band:"#aae0fa", icon:"🏢" },
-      { name:"Connecticut Avenue", band:"#aae0fa", icon:"🏢" },
-      { name:"Jail / Just Visiting", type:"corner" },
-      { name:"St. Charles Place", band:"#d93a96", icon:"🏘️" },
-      { name:"Electric Company", type:"util", icon:"💡" },
-      { name:"States Avenue", band:"#d93a96", icon:"🏘️" },
-      { name:"Virginia Avenue", band:"#d93a96", icon:"🏘️" },
-      { name:"Pennsylvania Railroad", type:"rail", icon:"🚆" },
-      { name:"St. James Place", band:"#f7941d", icon:"🏨" },
-      { name:"Community Chest", type:"chest", icon:"🧰" },
-      { name:"Tennessee Avenue", band:"#f7941d", icon:"🏨" },
-      { name:"New York Avenue", band:"#f7941d", icon:"🏨" },
-      { name:"Free Parking", type:"corner" },
-      { name:"Kentucky Avenue", band:"#ed1b24", icon:"🏬" },
-      { name:"Chance", type:"chance", icon:"❓" },
-      { name:"Indiana Avenue", band:"#ed1b24", icon:"🏬" },
-      { name:"Illinois Avenue", band:"#ed1b24", icon:"🏬" },
-      { name:"B. & O. Railroad", type:"rail", icon:"🚄" },
-      { name:"Atlantic Avenue", band:"#fef200", icon:"🏢" },
-      { name:"Ventnor Avenue", band:"#fef200", icon:"🏢" },
-      { name:"Water Works", type:"util", icon:"🚰" },
-      { name:"Marvin Gardens", band:"#fef200", icon:"🏢" },
-      { name:"Go To Jail", type:"corner" },
-      { name:"Pacific Avenue", band:"#1fb25a", icon:"🏢" },
-      { name:"North Carolina Avenue", band:"#1fb25a", icon:"🏢" },
-      { name:"Community Chest", type:"chest", icon:"🧰" },
-      { name:"Pennsylvania Avenue", band:"#1fb25a", icon:"🏢" },
-      { name:"Short Line", type:"rail", icon:"🚃" },
-      { name:"Chance", type:"chance", icon:"❓" },
-      { name:"Park Place", band:"#0072bb", icon:"🏙️" },
-      { name:"Luxury Tax", type:"tax", icon:"💎" },
-      { name:"Boardwalk", band:"#0072bb", icon:"🏙️" },
+      { name: "GO", type: "corner" },
+      { name: "Mediterranean Avenue", band: "#955436", icon: "🏠" },
+      { name: "Community Chest", type: "chest", icon: "🧰" },
+      { name: "Baltic Avenue", band: "#955436", icon: "🏠" },
+      { name: "Income Tax", type: "tax", icon: "💵" },
+      { name: "Reading Railroad", type: "rail", icon: "🚂" },
+      { name: "Oriental Avenue", band: "#aae0fa", icon: "🏢" },
+      { name: "Chance", type: "chance", icon: "❓" },
+      { name: "Vermont Avenue", band: "#aae0fa", icon: "🏢" },
+      { name: "Connecticut Avenue", band: "#aae0fa", icon: "🏢" },
+      { name: "Jail / Just Visiting", type: "corner" },
+      { name: "St. Charles Place", band: "#d93a96", icon: "🏘️" },
+      { name: "Electric Company", type: "util", icon: "💡" },
+      { name: "States Avenue", band: "#d93a96", icon: "🏘️" },
+      { name: "Virginia Avenue", band: "#d93a96", icon: "🏘️" },
+      { name: "Pennsylvania Railroad", type: "rail", icon: "🚆" },
+      { name: "St. James Place", band: "#f7941d", icon: "🏨" },
+      { name: "Community Chest", type: "chest", icon: "🧰" },
+      { name: "Tennessee Avenue", band: "#f7941d", icon: "🏨" },
+      { name: "New York Avenue", band: "#f7941d", icon: "🏨" },
+      { name: "Free Parking", type: "corner" },
+      { name: "Kentucky Avenue", band: "#ed1b24", icon: "🏬" },
+      { name: "Chance", type: "chance", icon: "❓" },
+      { name: "Indiana Avenue", band: "#ed1b24", icon: "🏬" },
+      { name: "Illinois Avenue", band: "#ed1b24", icon: "🏬" },
+      { name: "B. & O. Railroad", type: "rail", icon: "🚄" },
+      { name: "Atlantic Avenue", band: "#fef200", icon: "🏢" },
+      { name: "Ventnor Avenue", band: "#fef200", icon: "🏢" },
+      { name: "Water Works", type: "util", icon: "🚰" },
+      { name: "Marvin Gardens", band: "#fef200", icon: "🏢" },
+      { name: "Go To Jail", type: "corner" },
+      { name: "Pacific Avenue", band: "#1fb25a", icon: "🏢" },
+      { name: "North Carolina Avenue", band: "#1fb25a", icon: "🏢" },
+      { name: "Community Chest", type: "chest", icon: "🧰" },
+      { name: "Pennsylvania Avenue", band: "#1fb25a", icon: "🏢" },
+      { name: "Short Line", type: "rail", icon: "🚃" },
+      { name: "Chance", type: "chance", icon: "❓" },
+      { name: "Park Place", band: "#0072bb", icon: "🏙️" },
+      { name: "Luxury Tax", type: "tax", icon: "💎" },
+      { name: "Boardwalk", band: "#0072bb", icon: "🏙️" },
     ];
 
-    /* Map tile index -> 11x11 grid coords */
+    /* 11x11 grid mapping */
     const gridMap = (() => {
       const coords = new Array(40);
-      for (let i=0;i<=10;i++) coords[i] = {r:11, c:11-i};       // bottom row, right→left
-      for (let i=1;i<=10;i++) coords[10+i] = {r:11-i, c:1};     // left col, bottom→top
-      for (let i=1;i<=10;i++) coords[20+i] = {r:1, c:i+1};      // top row, left→right
-      for (let i=1;i<=9;i++)  coords[30+i] = {r:i+1, c:11};     // right col, top→bottom
+      for (let i = 0; i <= 10; i++) coords[i] = { r: 11, c: 11 - i };
+      for (let i = 1; i <= 10; i++) coords[10 + i] = { r: 11 - i, c: 1 };
+      for (let i = 1; i <= 10; i++) coords[20 + i] = { r: 1, c: i + 1 };
+      for (let i = 1; i <= 9; i++)  coords[30 + i] = { r: i + 1, c: 11 };
       return coords;
     })();
 
-    /* Build board */
+    /* Build board (with diagonal decks in center) */
     function buildBoard() {
       boardEl.innerHTML = "";
-      for (let i=0;i<40;i++) {
-        const t = tiles[i]; const {r,c} = gridMap[i];
+      for (let i = 0; i < 40; i++) {
+        const t = tiles[i]; const { r, c } = gridMap[i];
         const d = document.createElement('div');
-        d.className = "tile" + (t.type==="corner" ? " corner":"");
+        d.className = "tile" + (t.type === "corner" ? " corner" : "");
         d.style.gridRow = r; d.style.gridColumn = c;
-        if (t.band) { const b = document.createElement("div"); b.className="band"; b.style.background=t.band; d.appendChild(b); }
-        const ic = document.createElement("div"); ic.className="icon"; ic.textContent = t.icon || "⬜";
-        const nm = document.createElement("div"); nm.className="name"; nm.textContent = shortName(t.name);
+        if (t.band) { const b = document.createElement("div"); b.className = "band"; b.style.background = t.band; d.appendChild(b); }
+        const ic = document.createElement("div"); ic.className = "icon"; ic.textContent = t.icon || "⬜";
+        const nm = document.createElement("div"); nm.className = "name"; nm.textContent = shortName(t.name);
         d.appendChild(ic); d.appendChild(nm);
         boardEl.appendChild(d);
       }
-      const center = document.createElement('div'); center.className="center"; center.textContent="MONOPOLY";
+
+      const center = document.createElement('div');
+      center.className = "center";
+      center.id = "center";
+      center.innerHTML = `
+        <div class="title">MONOPOLY</div>
+        <div class="decks">
+          <div class="deck chance tl" id="deckChance" aria-label="Draw a Chance card" title="Draw a Chance card">
+            <div class="stack">
+              <div class="card">
+                <div class="label"><span class="q">?</span><span>CHANCE</span></div>
+                <div style="font-size:1.4rem;opacity:.7;">Draw the top card</div>
+              </div>
+              <div class="card"></div>
+              <div class="card"></div>
+            </div>
+          </div>
+
+          <div class="deck chest br" id="deckChest" aria-label="Draw a Mystery (Community Chest) card" title="Draw a Mystery (Community Chest) card">
+            <div class="stack">
+              <div class="card">
+                <div class="label"><span class="q">?</span><span>MYSTERY</span></div>
+                <div style="font-size:1.1rem;opacity:.7;">(Community Chest)</div>
+              </div>
+              <div class="card"></div>
+              <div class="card"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card reveal modal -->
+        <div class="cardModal" id="cardModal" role="dialog" aria-modal="true" aria-labelledby="cardTitle">
+          <div class="cardView">
+            <div class="kicker" id="cardDeckKicker">CARD</div>
+            <h4 id="cardTitle">—</h4>
+            <p id="cardBody"></p>
+            <button class="btn closeBtn" id="cardClose">OK</button>
+          </div>
+        </div>
+
+        <!-- Buy property modal -->
+        <div class="cardModal" id="buyModal" role="dialog" aria-modal="true" aria-labelledby="buyTitle">
+          <div class="cardView">
+            <div class="kicker">PROPERTY</div>
+            <h4 id="buyTitle">—</h4>
+            <p id="buyBody"></p>
+            <div style="display:flex; gap:10px; justify-content:center; margin-top:14px;">
+              <button class="btn" id="buyConfirm">Buy</button>
+              <button class="btn red" id="buyCancel">Skip</button>
+            </div>
+          </div>
+        </div>
+      `;
       boardEl.appendChild(center);
-    }
-    function shortName(n){
-      return n.replace("Avenue","Ave").replace("Railroad","RR").replace("Pennsylvania","Penn")
-              .replace("Carolina","Car.").replace("Community Chest","Chest")
-              .replace("Electric Company","Electric Co.").replace("Water Works","Water");
+
+      // Wire listeners after append
+      document.getElementById('deckChance')?.addEventListener('click', () => { if (myTurn) requestDraw('chance'); });
+      document.getElementById('deckChest')?.addEventListener('click', () => { if (myTurn) requestDraw('chest'); });
+      document.getElementById('cardClose')?.addEventListener('click', hideCard);
+      document.getElementById('cardModal')?.addEventListener('click', (e) => { if (e.target.id === 'cardModal') hideCard(); });
+      document.getElementById('buyCancel')?.addEventListener('click', hideBuy);
+      document.getElementById('buyModal')?.addEventListener('click', (e) => { if (e.target.id === 'buyModal') hideBuy(); });
     }
 
-    /* Tokens & positions */
+    function shortName(n) {
+      return n.replace("Avenue", "Ave").replace("Railroad", "RR").replace("Pennsylvania", "Penn")
+        .replace("Carolina", "Car.").replace("Community Chest", "Chest")
+        .replace("Electric Company", "Electric Co.").replace("Water Works", "Water");
+    }
+
+    /* Property helpers */
+    function isPurchasable(index) {
+      const t = tiles[index];
+      if (!t) return false;
+      if (t.band) return true;
+      if (t.type === 'rail' || t.type === 'util') return true;
+      return false;
+    }
+
+    async function requestPropertyInfo(index) {
+      try {
+        const res = await fetch(API_PROPERTY_INFO, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room: gameId, playerId, index, playerName })
+        });
+        const payload = await (async () => { try { return await res.json(); } catch { return null; } })();
+        if (!res.ok) {
+          logLine(`Property info failed: ${res.status} ${res.statusText}${payload?.error ? " — " + payload.error : ""}`);
+          return null;
+        }
+        return payload; // expect { available:boolean, name:string, price:number, rent?:number, ownerId?:string }
+      } catch (e) {
+        logLine(`Error calling /property/info: ${e}`);
+        return null;
+      }
+    }
+
+    function showBuy(info, playerName) {
+      const m = document.getElementById('buyModal');
+      document.getElementById('buyTitle').textContent = `Hey ${playerName}? this property is available,`;
+      document.getElementById('buyBody').textContent = `Do you want to buy this property? Property: $${info.Name}.  Price: $${info.Price}.  Rent: $${info.Rent}.`;
+      const btn = document.getElementById('buyConfirm');
+      btn.disabled = false;
+      btn.onclick = async () => {
+        btn.disabled = true;
+        try {
+          const res = await fetch(API_PROPERTY_BUY, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ room: gameId, playerId, info })
+          });
+          const payload = await (async () => { try { return await res.json(); } catch { return null; } })();
+          console.log("buy", payload)
+          if (!res.ok) {
+            logLine(`Buy failed: ${res.status} ${res.statusText}${payload?.error ? " — " + payload.error : ""}`);
+          } else {
+            logLine(`Purchased ${info.Name} for $${info.Price}.`);
+          }
+        } catch (e) {
+          logLine(`Error calling /property/buy: ${e}`);
+        }
+        hideBuy();
+      };
+      m.classList.add('show');
+    }
+    function hideBuy() { document.getElementById('buyModal').classList.remove('show'); }
+
+    async function maybeAskToBuy(landedIndex) {
+      if (!myTurn) return;
+      if (!isPurchasable(landedIndex)) return;
+      const t = tiles[landedIndex];
+      const info = await requestPropertyInfo(landedIndex);
+
+      console.log(info, "---")
+      if (!info) return;
+      if (info.Owner == "") {
+        showBuy(info, playerName);
+      } else if (info.ownerId) {
+        logLine(`${t.name} is owned — server will handle rent.`);
+      }
+    }
+
+    /* Card modal helpers */
+    function showCard(deck, title, body) {
+      const modal = document.getElementById('cardModal');
+      document.getElementById('cardDeckKicker').textContent = deck === 'chance' ? '? CHANCE' : '? MYSTERY';
+      document.getElementById('cardTitle').textContent = title || 'Card';
+      document.getElementById('cardBody').textContent = body || '';
+      modal.classList.add('show');
+    }
+    function hideCard() { document.getElementById('cardModal').classList.remove('show'); }
+    function requestDraw(deck) { send({ type: "draw", deck, room: gameId, playerId }); logLine(`Requested a ${deck === 'chance' ? 'Chance' : 'Mystery'} card…`); }
+
+    /* Tokens & movement */
     function ensureToken(pid, name) {
-      let el = document.getElementById("t_"+pid);
+      let el = document.getElementById("t_" + pid);
       if (!el) {
         el = document.createElement("div");
-        el.id = "t_"+pid; el.className = "token";
-        el.dataset.initial = (name||"?").trim()[0]?.toUpperCase() || "?";
+        el.id = "t_" + pid; el.className = "token";
+        el.dataset.initial = (name || "?").trim()[0]?.toUpperCase() || "?";
         colors[pid] = colors[pid] || pickColor(pid);
         el.style.setProperty("--token", colors[pid]);
         tokensEl.appendChild(el);
@@ -219,79 +341,77 @@
       return el;
     }
     function moveToken(pid, toIndex) {
-      const pos = Math.max(0, Math.min(39, toIndex|0));
+      const pos = Math.max(0, Math.min(39, toIndex | 0));
       positions[pid] = pos;
-      const {r,c} = gridMap[pos];
+      const { r, c } = gridMap[pos];
       const el = ensureToken(pid, roster.get(pid)?.name || "");
-      const {dx,dy} = tinyOffset(pid);
+      const { dx, dy } = tinyOffset(pid);
       el.style.gridRow = r; el.style.gridColumn = c;
-      el.style.setProperty("--tx", dx+"px"); el.style.setProperty("--ty", dy+"px");
+      el.style.setProperty("--tx", dx + "px"); el.style.setProperty("--ty", dy + "px");
     }
-    function animateMove(pid, from, to) {
+    function animateMove(pid, from, to, onDone) {
       let steps = ((to - from) + 40) % 40;
       if (steps === 0 && from !== to) steps = 40;
-      let cur = from, i=0;
+      let cur = from, i = 0;
       const hop = () => {
         cur = (cur + 1) % 40; moveToken(pid, cur);
         if (++i < steps) setTimeout(hop, 80);
+        else if (typeof onDone === 'function') onDone(cur);
       };
       hop();
     }
-    function pickColor(id){ const p=["#1f6feb","#d64545","#1fb25a","#7c3aed","#eab308","#ef4444","#06b6d4","#f97316","#3b82f6","#16a34a"]; let h=0; for (let i=0;i<id.length;i++) h=(h*33+id.charCodeAt(i))>>>0; return p[h%p.length]; }
-    function tinyOffset(id){ let h=0; for (let i=0;i<id.length;i++) h=(h*31+id.charCodeAt(i))>>>0; return {dx:((h&7)-3)*3, dy:(((h>>3)&7)-3)*3}; }
+    function pickColor(id) { const p = ["#1f6feb", "#d64545", "#1fb25a", "#7c3aed", "#eab308", "#ef4444", "#06b6d4", "#f97316", "#3b82f6", "#16a34a"]; let h = 0; for (let i = 0; i < id.length; i++) h = (h * 33 + id.charCodeAt(i)) >>> 0; return p[h % p.length]; }
+    function tinyOffset(id) { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return { dx: ((h & 7) - 3) * 3, dy: (((h >> 3) & 7) - 3) * 3 }; }
 
     /* Logging & roster */
-    function t(){ return new Date().toLocaleTimeString(); }
-    function logLine(text, cls="sys"){ const d=document.createElement('div'); d.className=cls; d.textContent=`[${t()}] ${text}`; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
-    function logInbound(payload){ const d=document.createElement('div'); d.className='in'; d.textContent=`[${t()}] ← ${payload}`; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight; }
-    function logOutbound(obj){ const d=document.createElement('div'); d.className='out'; d.textContent=`[${t()}] → ${JSON.stringify(obj)}`; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight; }
-    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;"," >":"&gt;","\"":"&quot;","'":"&#39;"}[c] || c)); }
-    function renderPlayers(list){
+    function t() { return new Date().toLocaleTimeString(); }
+    function logLine(text, cls = "sys") { const d = document.createElement('div'); d.className = cls; d.textContent = `[${t()}] ${text}`; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
+    function logInbound(payload) { const d = document.createElement('div'); d.className = 'in'; d.textContent = `[${t()}] ← ${payload}`; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
+    function logOutbound(obj) { const d = document.createElement('div'); d.className = 'out'; d.textContent = `[${t()}] → ${JSON.stringify(obj)}`; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
+    function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", " >": "&gt;", "\"": "&quot;", "'": "&#39;" }[c] || c)); }
+    function renderPlayers(list) {
       roster = new Map(list.map(p => [p.id, p]));
       playersEl.innerHTML = ""; countTag.textContent = `${list.length}/10`;
       list.forEach(p => {
-        const el=document.createElement('div'); el.className='roster-item';
-        const me = p.id===playerId;
-        el.innerHTML = `<div><span class="pill ${me?'me':''}">${me?'You':'Player'}</span> <strong>${escapeHtml(p.name||'')}</strong></div><div class="id">${escapeHtml(p.id.slice(0,6))}…</div>`;
+        const el = document.createElement('div'); el.className = 'roster-item';
+        const me = p.id === playerId;
+        el.innerHTML = `<div><span class="pill ${me ? 'me' : ''}">${me ? 'You' : 'Player'}</span> <strong>${escapeHtml(p.name || '')}</strong></div><div class="id">${escapeHtml(p.id.slice(0, 6))}…</div>`;
         playersEl.appendChild(el);
-        if (!(p.id in positions)) moveToken(p.id, 0); // INITIAL AT GO
+        if (!(p.id in positions)) moveToken(p.id, 0);
       });
-      // prune tokens of leavers
       Array.from(tokensEl.children).forEach(tok => { const pid = tok.id.slice(2); if (!roster.has(pid)) tok.remove(); });
     }
 
     /* WebSocket */
-    function send(obj){ if (ws && ws.readyState===WebSocket.OPEN){ ws.send(JSON.stringify(obj)); logOutbound(obj); } }
-    function connect(){
+    function send(obj) { if (ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify(obj)); logOutbound(obj); } }
+    function connect() {
       ws = new WebSocket(WS_URL);
       ws.onopen = () => {
         logLine("Connected.");
-        // Resume & request state snapshot so everyone is aligned
-        send({type:"resume", playerId, name:playerName, room:gameId});
-        send({type:"subscribeLogs", room:gameId});
-        send({type:"who", room:gameId});
-        send({type:"sync", room:gameId});
+        send({ type: "resume", playerId, name: playerName, room: gameId });
+        send({ type: "subscribeLogs", room: gameId });
+        send({ type: "who", room: gameId });
+        send({ type: "sync", room: gameId });
       };
       ws.onmessage = ev => {
-        const raw = ev.data; logInbound(typeof raw==="string"?raw:"[binary]");
-        let msg; try{ msg=JSON.parse(raw) } catch { return; }
+        const raw = ev.data; logInbound(typeof raw === "string" ? raw : "[binary]");
+        let msg; try { msg = JSON.parse(raw) } catch { return; }
 
-        switch(msg.type){
-          case "players":
-            renderPlayers(msg.list||[]);
-            break;
+        switch (msg.type) {
+          case "players": renderPlayers(msg.list || []); break;
 
           case "playerJoined":
-            if (msg.player){ roster.set(msg.player.id,msg.player); renderPlayers([...roster.values()]); }
+            if (msg.player) { roster.set(msg.player.id, msg.player); renderPlayers([...roster.values()]); }
             break;
 
           case "playerLeft":
-            if (msg.player){ roster.delete(msg.player.id); renderPlayers([...roster.values()]); }
+            if (msg.player) { roster.delete(msg.player.id); renderPlayers([...roster.values()]); }
             break;
 
           case "yourTurn":
-            rollBtn.disabled = !msg.canRoll;
-            if (msg.canRoll) logLine("It's your turn!");
+            myTurn = !!msg.canRoll;
+            rollBtn.disabled = !myTurn;
+            if (myTurn) logLine("It's your turn!");
             break;
 
           case "event":
@@ -302,28 +422,53 @@
 
           case "move": {
             if (!isNewer(msg)) return;
-            const pid = msg.playerId;
-            if (!pid) break;
+            const pid = msg.playerId; if (!pid) break;
             const from = Number(positions[pid] ?? 0);
-            const to   = Number(msg.to ?? from);
-            // Animate according to server; do NOT move locally elsewhere
-            animateMove(pid, from, ((to % 40) + 40) % 40);
+            const to = Number(msg.to ?? from);
+            animateMove(pid, from, ((to % 40) + 40) % 40, (landed) => {
+              if (pid === playerId) {
+                maybeAutoDraw(landed);
+                maybeAskToBuy(landed);   // ← ask “Do you want to buy?”
+              }
+            });
             break;
           }
 
           case "state": {
             if (!isNewer(msg)) return;
-            // Apply a snapshot from server (optional animate small deltas)
-            if (msg.positions && typeof msg.positions==="object"){
+            if (msg.positions && typeof msg.positions === "object") {
               Object.entries(msg.positions).forEach(([pid, idx]) => {
                 const cur = Number(positions[pid] ?? 0);
                 const target = Number(idx ?? cur);
-                if (cur !== target) animateMove(pid, cur, ((target % 40)+40)%40);
+                if (cur !== target) {
+                  animateMove(pid, cur, ((target % 40) + 40) % 40, (landed) => {
+                    if (pid === playerId) {
+                      maybeAutoDraw(landed);
+                      maybeAskToBuy(landed); // ← ask on snapshot land as well
+                    }
+                  });
+                }
               });
             }
             if (msg.turn) {
-              rollBtn.disabled = (msg.turn !== playerId);
+              myTurn = (msg.turn === playerId);
+              rollBtn.disabled = !myTurn;
             }
+            break;
+          }
+
+          case "drawPrompt": {
+            if (!msg.deck) break;
+            requestDraw(String(msg.deck).toLowerCase() === 'chance' ? 'chance' : 'chest');
+            break;
+          }
+
+          case "card": {
+            if (!msg.deck) break;
+            const deck = String(msg.deck).toLowerCase() === 'chance' ? 'chance' : 'chest';
+            const title = msg.title || (deck === 'chance' ? 'Advance to GO' : 'Bank error in your favor');
+            const body = msg.text || '';
+            showCard(deck, title, body);
             break;
           }
 
@@ -331,42 +476,57 @@
             logLine(`JSON: ${JSON.stringify(msg, null, 2)}`);
         }
       };
-      ws.onclose = () => { logLine("Disconnected."); rollBtn.disabled=true; retry(); };
-      ws.onerror  = () => { logLine("WebSocket error."); };
+      ws.onclose = () => { logLine("Disconnected."); rollBtn.disabled = true; myTurn = false; retry(); };
+      ws.onerror = () => { logLine("WebSocket error."); };
     }
-    let retries=0; function retry(){ const d=Math.min(1000*Math.pow(2,retries++), 8000); setTimeout(connect, d); }
-    setInterval(() => { send({type:"ping", t:Date.now(), room:gameId}); }, 25000);
+    let retries = 0; function retry() { const d = Math.min(1000 * Math.pow(2, retries++), 8000); setTimeout(connect, d); }
+    setInterval(() => { send({ type: "ping", t: Date.now(), room: gameId }); }, 25000);
 
-    /* Roll (server-authoritative) */
+    /* Auto draw when landing on chance/chest, only if it's your turn */
+    function maybeAutoDraw(landedIndex) {
+      const t = tiles[landedIndex]; if (!t || !myTurn) return;
+      if (t.type === 'chance') requestDraw('chance');
+      else if (t.type === 'chest') requestDraw('chest');
+    }
+
+    /* Roll (server authoritative) */
     rollBtn.addEventListener('click', async () => {
-      rollBtn.disabled = true; // server will re-enable on "yourTurn"
+      rollBtn.disabled = true;
+
+      const overlay = document.getElementById('diceOverlay');
+      overlay?.classList.add('show');   // show animation
+
       try {
         const res = await fetch(API_ROLL, {
           method: 'POST',
-          headers: {'Content-Type':'application/json'},
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playerId, room: gameId, name: playerName })
         });
-        const payload = await (async()=>{ try{ return await res.json(); }catch{ return null; }})();
+        const payload = await (async () => { try { return await res.json(); } catch { return null; } })();
+
+        overlay?.classList.remove('show');  // hide once we get a response
+
         if (!res.ok) {
-          logLine(`Roll failed: ${res.status} ${res.statusText}${payload?.error? " — "+payload.error:""}`);
-          // ask server to resync us if something failed
-          send({type:"sync", room:gameId});
+          logLine(`Roll failed: ${res.status} ${res.statusText}${payload?.error ? " — " + payload.error : ""}`);
+          send({ type: "sync", room: gameId });
           return;
         }
-        // No local movement here—wait for server "move"/"state"
         if (payload?.dice?.length === 2) {
-          logLine(`Roll requested. Server dice: ${payload.dice[0]} & ${payload.dice[1]} (total ${Number(payload.total ?? (payload.dice[0]+payload.dice[1]))}).`);
+          logLine(`🎲 You rolled ${payload.dice[0]} & ${payload.dice[1]} (total ${Number(payload.total ?? (payload.dice[0] + payload.dice[1]))}).`);
         } else {
           logLine(`Roll requested.`);
         }
       } catch (e) {
+        overlay?.classList.remove('show');
         logLine(`Error calling /roll: ${e}`);
-        send({type:"sync", room:gameId});
+        send({ type: "sync", room: gameId });
       }
     });
 
+
+
     leaveBtn.addEventListener('click', () => {
-      try { send({ type:"leave", playerId, room:gameId }); ws && ws.close(1000); } catch {}
+      try { send({ type: "leave", playerId, room: gameId }); ws && ws.close(1000); } catch { }
       sessionStorage.removeItem("playerId"); sessionStorage.removeItem("playerName"); sessionStorage.removeItem("gameId");
       window.location.href = "index.html";
     });
@@ -375,4 +535,5 @@
     buildBoard(); connect();
   </script>
 </body>
+
 </html>

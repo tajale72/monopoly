@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
+	"monopoly/types"
 	"net/http"
 	"sort"
 	"sync"
@@ -54,6 +56,13 @@ type rollReq struct {
 	PlayerID string `json:"playerId"`
 	Room     string `json:"room"`
 	Name     string `json:"name"` // optional (used for logging)
+	Index    int    `json:"index"`
+	Type     string // corner, property, rail, util, chance, chest, tax
+	Band     string // color hex if property
+	Icon     string // emoji
+	Price    int
+	Rent     int
+	Owner    string
 }
 
 /* ===== Globals ===== */
@@ -96,7 +105,10 @@ func main() {
 
 	http.HandleFunc("/ws", withCORS(wsHandler))
 	http.HandleFunc("/roll", withCORS(rollHTTP))
+	http.HandleFunc("/property/info", withCORS((popertyInfoHTTP)))
+	http.HandleFunc("/property/buy", withCORS((buyPropertyHTTP)))
 	http.HandleFunc("/debug/players", withCORS(debugPlayersHTTP))
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	// Serve HTML
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -122,9 +134,9 @@ func main() {
 	}
 }
 
-/* ===== REST: /roll ===== */
-
-func rollHTTP(w http.ResponseWriter, r *http.Request) {
+func popertyInfoHTTP(w http.ResponseWriter, r *http.Request) {
+	payload, _ := io.ReadAll(r.Body)
+	fmt.Println(string(payload))
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -132,11 +144,57 @@ func rollHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req rollReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("decode error: %v", err)
-		http.Error(w, "bad json", http.StatusBadRequest)
+	json.Unmarshal(payload, &req)
+
+	for k, v := range types.Board {
+		if req.Index == k {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(v)
+			return
+		}
+	}
+}
+
+func buyPropertyHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Println("buying property")
+	payload, _ := io.ReadAll(r.Body)
+	fmt.Println(string(payload))
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	var req rollReq
+	json.Unmarshal(payload, &req)
+
+	clientData := getClientByID(req.Room, req.PlayerID)
+	user := types.Players{
+		Name: clientData.Name,
+	}
+	user.AddProperty(req.Name, req.Price, req.Rent)
+
+}
+
+/* ===== REST: /roll ===== */
+
+func rollHTTP(w http.ResponseWriter, r *http.Request) {
+
+	payload, _ := io.ReadAll(r.Body)
+	fmt.Println(string(payload))
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req rollReq
+	json.Unmarshal(payload, &req)
+	// if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	// 	log.Printf("decode error: %v", err)
+	// 	http.Error(w, "bad json", http.StatusBadRequest)
+	// 	return
+	// }
 	if req.Room == "" || req.PlayerID == "" {
 		http.Error(w, "missing room or playerId", http.StatusBadRequest)
 		return
@@ -147,8 +205,6 @@ func rollHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "player not connected in room", http.StatusNotFound)
 		return
 	}
-
-	log.Println("Rolling Dice...", c.Name, short(c.ID), "in room", req.Room)
 
 	// Turn check
 	holder := getTurnHolder(req.Room)
@@ -181,6 +237,8 @@ func rollHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Pass turn
 	passTurn(req.Room, c)
+
+	log.Println("Rolling Dice...", c.Name, short(c.ID), "in room", req.Room, d1, d2, total)
 
 	// Response for the caller
 	w.Header().Set("Content-Type", "application/json")

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Two Dice Roll — Single File</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0b132b; --card:#151e3a; --muted:#0f1b3d;
+      --text:#e8f1f2; --sub:#a8b3c4; --accent:#5bc0be; --accent2:#3a86ff;
+      --border:#22345f;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(135deg,var(--bg),#0a1229);
+      color:var(--text); font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;
+    }
+
+    /* Board wrapper */
+    .board{
+      width:min(720px,94vw);
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:16px;
+      box-shadow:0 12px 36px rgba(0,0,0,.35);
+      padding:1.25rem;
+    }
+
+    .board header{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:.75rem; margin-bottom:1rem;
+    }
+    .title{font-weight:800; letter-spacing:.3px}
+    .badge{
+      background:var(--muted); border:1px solid var(--border);
+      padding:.25rem .6rem; border-radius:999px; color:var(--sub); font-size:.9rem;
+    }
+
+    /* A simple 4x5 board grid just for looks */
+    .grid{
+      display:grid; grid-template-columns:repeat(10,1fr);
+      grid-auto-rows:70px; gap:.5rem; margin-bottom:1rem;
+    }
+    .cell{
+      background:var(--muted); border:1px solid var(--border);
+      border-radius:10px; position:relative; overflow:hidden;
+    }
+    .cell .label{
+      position:absolute; left:6px; bottom:6px; color:var(--sub);
+      font-size:.7rem; font-weight:600;
+    }
+
+    /* Dice row */
+    .dice-row{
+      display:flex; align-items:center; justify-content:center; gap:16px;
+      margin: .75rem 0 1rem 0;
+    }
+    .die{
+      width:80px; height:80px; background:#fff; color:#111;
+      border-radius:14px; border:2px solid rgba(0,0,0,.08);
+      box-shadow:0 12px 28px rgba(0,0,0,.25), inset 0 2px 0 rgba(0,0,0,.08);
+      display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr);
+      gap:6px; padding:10px;
+      transform-origin:50% 50%;
+    }
+    .pip{
+      width:14px; height:14px; border-radius:50%; background:#111;
+      justify-self:center; align-self:center; box-shadow:0 1px 0 rgba(0,0,0,.25);
+    }
+    .die.shake{ animation:dice-shake .85s ease-in-out both; }
+    @keyframes dice-shake{
+      0%{transform:translateY(0) rotate(0deg) scale(1)}
+      20%{transform:translateY(-6px) rotate(-8deg) scale(1.02)}
+      40%{transform:translateY(2px) rotate(7deg) scale(1.02)}
+      60%{transform:translateY(-3px) rotate(-5deg) scale(1.01)}
+      80%{transform:translateY(1px) rotate(3deg) scale(1.01)}
+      100%{transform:translateY(0) rotate(0deg) scale(1)}
+    }
+    .die.pop{ animation:dice-pop .18s ease-out; }
+    @keyframes dice-pop{ 0%{transform:scale(.92)} 100%{transform:scale(1)} }
+
+    /* Controls */
+    .controls{ display:flex; align-items:center; gap:.6rem; justify-content:center; }
+    .button{
+      padding:.65rem 1.1rem; border:none; border-radius:10px;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:#fff; font-weight:700; cursor:pointer;
+    }
+    .button:hover{ filter:brightness(1.07) }
+    .result{ text-align:center; color:#fff; margin-top:.6rem; font-weight:700; }
+
+    /* Footer */
+    .foot{ text-align:center; color:var(--sub); margin-top:1rem; font-size:.9rem; }
+  </style>
+</head>
+<body>
+  <div class="board">
+    <header>
+      <div class="title">🎲 Dice on Board</div>
+      <div class="badge" id="status">Ready</div>
+    </header>
+
+    <!-- Simple decorative grid board -->
+    <div class="grid" id="boardGrid"></div>
+
+    <!-- Dice -->
+    <div class="dice-row">
+      <div id="die1" class="die"></div>
+      <div id="die2" class="die"></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <button class="button" id="rollBtn">Roll Dice</button>
+    </div>
+
+    <div class="result" id="result">Total: —</div>
+    <div class="foot">Single-file HTML · CSS · JS</div>
+  </div>
+
+  <script>
+    // ------- Board scaffolding (purely visual) -------
+    (function renderBoard(){
+      const grid = document.getElementById('boardGrid');
+      const N = 20; // 20 decorative cells
+      const labels = [
+        'GO','Med Ave','Chest','Baltic','Tax','Rail',
+        'Oriental','Chance','Vermont','Conn',
+        'Jail','St. Charles','Electric','States','Virginia',
+        'Go To Jail','St. James','Chest','Tennessee','New York'
+      ];
+      let html = '';
+      for(let i=0;i<N;i++){
+        html += `<div class="cell"><span class="label">${i}: ${labels[i]||'Space'}</span></div>`;
+      }
+      grid.innerHTML = html;
+    })();
+
+    // ------- Dice helpers -------
+    const die1 = document.getElementById('die1');
+    const die2 = document.getElementById('die2');
+    const rollBtn = document.getElementById('rollBtn');
+    const result = document.getElementById('result');
+    const status = document.getElementById('status');
+
+    // Positions (row,col) in a 3x3 grid for pips 1..6
+    const PIPS = {
+      1: [[2,2]],
+      2: [[1,1],[3,3]],
+      3: [[1,1],[2,2],[3,3]],
+      4: [[1,1],[1,3],[3,1],[3,3]],
+      5: [[1,1],[1,3],[2,2],[3,1],[3,3]],
+      6: [[1,1],[2,1],[3,1],[1,3],[2,3],[3,3]],
+    };
+
+    function renderPips(n){
+      return (PIPS[n]||[]).map(([r,c]) =>
+        `<span class="pip" style="grid-row:${r};grid-column:${c};"></span>`
+      ).join('');
+    }
+    function setDieFace(el, n){
+      el.dataset.face = String(n);
+      el.innerHTML = renderPips(n);
+    }
+
+    function rollDiceAnimation(final1, final2){
+      // Start shake and rapidly spin faces until settle
+      [die1, die2].forEach(d => { d.classList.remove('pop'); d.classList.add('shake'); });
+      const spin = setInterval(() => {
+        setDieFace(die1, 1 + Math.floor(Math.random()*6));
+        setDieFace(die2, 1 + Math.floor(Math.random()*6));
+      }, 85);
+
+      setTimeout(() => {
+        clearInterval(spin);
+        setDieFace(die1, final1);
+        setDieFace(die2, final2);
+        [die1, die2].forEach(d => {
+          d.classList.remove('shake');
+          d.classList.add('pop');
+          setTimeout(() => d.classList.remove('pop'), 220);
+        });
+      }, 900);
+    }
+
+    // Initialize faces
+    setDieFace(die1, 1);
+    setDieFace(die2, 1);
+
+    // ------- Roll button -------
+    rollBtn.addEventListener('click', () => {
+      const d1 = 1 + Math.floor(Math.random()*6);
+      const d2 = 1 + Math.floor(Math.random()*6);
+      status.textContent = 'Rolling…';
+      rollDiceAnimation(d1, d2);
+      setTimeout(() => {
+        status.textContent = 'Rolled!';
+        result.textContent = `Total: ${d1} + ${d2} = ${d1 + d2}`;
+      }, 950);
+    });
+  </script>
+</body>
+</html>
