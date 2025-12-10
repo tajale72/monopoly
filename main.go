@@ -113,7 +113,7 @@ func main() {
 		}
 	})
 
-	addr := ":8080"
+	addr := ":8081"
 	log.Printf("listening on %s (ws: /ws, roll: /roll)", addr)
 	go broadcastServerLog("Server started; waiting for players...")
 
